@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 id="main-title">Chess Game</h1>
+            
+            <!-- Language Selection -->
+            <div class="language-selector">
+                <button id="lang-en" class="lang-btn active">English</button>
+                <button id="lang-bg" class="lang-btn">Български</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="game-mode-selection">
+                <h2 id="choose-mode-text">Choose Game Mode</h2>
+                
+                <div class="mode-buttons">
+                    <button id="single-player-btn" class="mode-btn">
+                        <div class="btn-icon">♟️</div>
+                        <div class="btn-text">Single Player</div>
+                        <div class="btn-desc">Play against yourself</div>
+                    </button>
+                    
+                    <button id="multiplayer-btn" class="mode-btn">
+                        <div class="btn-icon">⚔️</div>
+                        <div class="btn-text">Multiplayer</div>
+                        <div class="btn-desc">Play against another player</div>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p id="footer-text">Click on a game mode to start playing</p>
+        </footer>
+    </div>
+
+    <script>
+        // Language translations
+        const translations = {
+            en: {
+                title: 'Chess Game',
+                chooseMode: 'Choose Game Mode',
+                singlePlayer: 'Single Player',
+                multiplayer: 'Multiplayer',
+                singlePlayerDesc: 'Play against yourself',
+                multiplayerDesc: 'Play against another player',
+                footerText: 'Click on a game mode to start playing'
+            },
+            bg: {
+                title: 'Шахматна игра',
+                chooseMode: 'Изберете режим на игра',
+                singlePlayer: 'Един играч',
+                multiplayer: 'Много играчи',
+                singlePlayerDesc: 'Играйте срещу себе си',
+                multiplayerDesc: 'Играйте срещу друг играч',
+                footerText: 'Кликнете върху режим на игра, за да започнете'
+            }
+        };
+
+        // Get current language from URL or default to English
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentLang = urlParams.get('lang') || 'en';
+
+        // Update page language
+        function updateLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+            
+            // Update text content
+            document.getElementById('main-title').textContent = t.title;
+            document.getElementById('choose-mode-text').textContent = t.chooseMode;
+            document.getElementById('footer-text').textContent = t.footerText;
+            
+            // Update button texts
+            const singlePlayerBtn = document.getElementById('single-player-btn');
+            singlePlayerBtn.querySelector('.btn-text').textContent = t.singlePlayer;
+            singlePlayerBtn.querySelector('.btn-desc').textContent = t.singlePlayerDesc;
+            
+            const multiplayerBtn = document.getElementById('multiplayer-btn');
+            multiplayerBtn.querySelector('.btn-text').textContent = t.multiplayer;
+            multiplayerBtn.querySelector('.btn-desc').textContent = t.multiplayerDesc;
+            
+            // Update language button states
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`lang-${lang}`).classList.add('active');
+            
+            // Update page lang attribute
+            document.documentElement.lang = lang;
+        }
+
+        // Language button handlers
+        document.getElementById('lang-en').addEventListener('click', () => {
+            updateLanguage('en');
+            // Update URL without reload
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('lang', 'en');
+            window.history.pushState({}, '', newUrl);
+        });
+
+        document.getElementById('lang-bg').addEventListener('click', () => {
+            updateLanguage('bg');
+            // Update URL without reload
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('lang', 'bg');
+            window.history.pushState({}, '', newUrl);
+        });
+
+        // Game mode button handlers
+        document.getElementById('single-player-btn').addEventListener('click', () => {
+            window.location.href = `/game?mode=single&lang=${currentLang}`;
+        });
+
+        document.getElementById('multiplayer-btn').addEventListener('click', () => {
+            window.location.href = `/game?mode=multiplayer&lang=${currentLang}`;
+        });
+
+        // Initialize with current language
+        updateLanguage(currentLang);
+    </script>
+</body>
+</html>

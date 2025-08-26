@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Simple chess board CSS */
+        .simple-chessboard {
+            width: 400px;
+            height: 400px;
+            border: 3px solid #333;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            margin: 0 auto;
+        }
+        .chess-square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .chess-square.light { background-color: #f0d9b5; }
+        .chess-square.dark { background-color: #b58863; }
+        .chess-square.selected { background-color: #ffff00 !important; }
+        .chess-square.highlight { background-color: #90ee90 !important; }
+    </style>
+</head>
+<body style="background: #f0f0f0;">
+    <div class="game-container">
+        <div class="game-header">
+            <h1 class="game-title" id="game-title">Chess Game</h1>
+            <div class="game-status" id="game-status">Loading...</div>
+            
+            <div class="player-info" id="player-info" style="display: none;">
+                <div class="player" id="white-player">
+                    <div>⚪ <span id="white-label">White</span></div>
+                    <div id="white-name">Player 1</div>
+                </div>
+                <div class="player" id="black-player">
+                    <div>⚫ <span id="black-label">Black</span></div>
+                    <div id="black-name">Player 2</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chessboard-container">
+            <div id="chessboard" class="simple-chessboard"></div>
+        </div>
+
+        <div class="game-controls">
+            <button class="control-btn" id="new-game-btn" onclick="startNewGame()">
+                <span id="new-game-text">New Game</span>
+            </button>
+            <button class="control-btn" id="home-btn" onclick="goHome()">
+                <span id="home-text">Home</span>
+            </button>
+        </div>
+
+        <div id="move-history" style="margin-top: 20px; text-align: center;">
+            <h3 id="history-title">Move History</h3>
+            <div id="history-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 5px;"></div>
+        </div>
+    </div>
+
+    <!-- Load Socket.io from our server -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Simple Chess.js alternative -->
+    <script>
+        // Simple chess logic
+        class SimpleChess {
+            constructor() {
+                this.board = this.getStartingPosition();
+                this.turn = 'w';
+                this.history = [];
+            }
+            
+            getStartingPosition() {
+                return [
+                    ['r','n','b','q','k','b','n','r'],
+                    ['p','p','p','p','p','p','p','p'],
+                    [null,null,null,null,null,null,null,null],
+                    [null,null,null,null,null,null,null,null],
+                    [null,null,null,null,null,null,null,null],
+                    [null,null,null,null,null,null,null,null],
+                    ['P','P','P','P','P','P','P','P'],
+                    ['R','N','B','Q','K','B','N','R']
+                ];
+            }
+            
+            getPiece(row, col) {
+                return this.board[row][col];
+            }
+            
+            setPiece(row, col, piece) {
+                this.board[row][col] = piece;
+            }
+            
+            isValidMove(fromRow, fromCol, toRow, toCol) {
+                // Simple validation - just check if there's a piece to move
+                const piece = this.getPiece(fromRow, fromCol);
+                if (!piece) return false;
+                
+                // Check if it's the right player's turn
+                const isWhite = piece === piece.toUpperCase();
+                if ((isWhite && this.turn !== 'w') || (!isWhite && this.turn !== 'b')) {
+                    return false;
+                }
+                
+                return true; // For now, allow all moves for simplicity
+            }
+            
+            makeMove(fromRow, fromCol, toRow, toCol) {
+                if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) {
+                    return false;
+                }
+                
+                const piece = this.getPiece(fromRow, fromCol);
+                this.setPiece(toRow, toCol, piece);
+                this.setPiece(fromRow, fromCol, null);
+                
+                // Switch turns
+                this.turn = this.turn === 'w' ? 'b' : 'w';
+                
+                const move = {
+                    from: this.positionToString(fromRow, fromCol),
+                    to: this.positionToString(toRow, toCol),
+                    piece: piece
+                };
+                
+                this.history.push(move);
+                return move;
+            }
+            
+            positionToString(row, col) {
+                return String.fromCharCode(97 + col) + (8 - row);
+            }
+            
+            stringToPosition(pos) {
+                const col = pos.charCodeAt(0) - 97;
+                const row = 8 - parseInt(pos[1]);
+                return [row, col];
+            }
+            
+            reset() {
+                this.board = this.getStartingPosition();
+                this.turn = 'w';
+                this.history = [];
+            }
+        }
+        
+        // Piece symbols
+        const pieceSymbols = {
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+        };
+    </script>
+
+    <script>
+        // Language translations
+        const translations = {
+            en: {
+                gameTitle: 'Chess Game',
+                singlePlayerTitle: 'Single Player Chess',
+                multiplayerTitle: 'Multiplayer Chess',
+                waitingForOpponent: 'Waiting for opponent...',
+                gameStarted: 'Game started! Your turn.',
+                opponentTurn: "Opponent's turn",
+                yourTurn: 'Your turn',
+                whitesTurn: "White's turn",
+                blacksTurn: "Black's turn",
+                whiteWins: 'White wins!',
+                blackWins: 'Black wins!',
+                opponentLeft: 'Opponent left the game',
+                newGame: 'New Game',
+                home: 'Home',
+                white: 'White',
+                black: 'Black',
+                historyTitle: 'Move History',
+                lobbyFull: 'Game lobby is full. Please try again later.',
+                connectionError: 'Connection error. Please refresh the page.'
+            },
+            bg: {
+                gameTitle: 'Шахматна игра',
+                singlePlayerTitle: 'Шахмат за един играч',
+                multiplayerTitle: 'Шахмат за много играчи',
+                waitingForOpponent: 'Чакане на противник...',
+                gameStarted: 'Играта започна! Вашият ред.',
+                opponentTurn: 'Ред на противника',
+                yourTurn: 'Вашият ред',
+                whitesTurn: 'Ред на белите',
+                blacksTurn: 'Ред на черните',
+                whiteWins: 'Белите печелят!',
+                blackWins: 'Черните печелят!',
+                opponentLeft: 'Противникът напусна играта',
+                newGame: 'Нова игра',
+                home: 'Начало',
+                white: 'Бели',
+                black: 'Черни',
+                historyTitle: 'История на ходовете',
+                lobbyFull: 'Лобито е пълно. Моля, опитайте отново по-късно.',
+                connectionError: 'Грешка във връзката. Моля, обновете страницата.'
+            }
+        };
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameMode = urlParams.get('mode') || 'single';
+        const currentLang = urlParams.get('lang') || 'en';
+        const t = translations[currentLang];
+
+        // Game variables
+        let game = new SimpleChess();
+        let socket = null;
+        let playerColor = null;
+        let gameStarted = false;
+        let selectedSquare = null;
+
+        // Initialize the application
+        function init() {
+            updateLanguage();
+            createBoard();
+            
+            if (gameMode === 'multiplayer') {
+                initMultiplayer();
+            } else {
+                initSinglePlayer();
+            }
+        }
+
+        // Update page language
+        function updateLanguage() {
+            document.documentElement.lang = currentLang;
+            document.getElementById('game-title').textContent = 
+                gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
+            document.getElementById('new-game-text').textContent = t.newGame;
+            document.getElementById('home-text').textContent = t.home;
+            document.getElementById('white-label').textContent = t.white;
+            document.getElementById('black-label').textContent = t.black;
+            document.getElementById('history-title').textContent = t.historyTitle;
+        }
+
+        // Create the chess board
+        function createBoard() {
+            const board = document.getElementById('chessboard');
+            board.innerHTML = '';
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `chess-square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    square.addEventListener('click', onSquareClick);
+                    
+                    const piece = game.getPiece(row, col);
+                    if (piece) {
+                        square.textContent = pieceSymbols[piece] || piece;
+                    }
+                    
+                    board.appendChild(square);
+                }
+            }
+        }
+
+        // Handle square clicks
+        function onSquareClick(event) {
+            if (!gameStarted) return;
+            
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            
+            // In multiplayer, check if it's our turn
+            if (gameMode === 'multiplayer' && playerColor) {
+                const isWhiteTurn = game.turn === 'w';
+                const isMyTurn = (isWhiteTurn && playerColor === 'white') || (!isWhiteTurn && playerColor === 'black');
+                if (!isMyTurn) return;
+            }
+            
+            if (selectedSquare) {
+                // Try to make a move
+                const fromRow = selectedSquare.row;
+                const fromCol = selectedSquare.col;
+                
+                if (fromRow === row && fromCol === col) {
+                    // Clicked same square - deselect
+                    clearSelection();
+                    return;
+                }
+                
+                const move = game.makeMove(fromRow, fromCol, row, col);
+                if (move) {
+                    updateBoard();
+                    addToHistory(`${move.from}-${move.to}`);
+                    
+                    // Send move in multiplayer
+                    if (gameMode === 'multiplayer' && socket) {
+                        socket.emit('make-move', {
+                            from: move.from,
+                            to: move.to,
+                            fen: 'simple-chess-state' // We don't use FEN in our simple version
+                        });
+                    }
+                    
+                    updateStatus();
+                }
+                
+                clearSelection();
+            } else {
+                // Select a piece
+                const piece = game.getPiece(row, col);
+                if (piece) {
+                    selectedSquare = { row, col };
+                    event.target.classList.add('selected');
+                }
+            }
+        }
+
+        // Clear selection
+        function clearSelection() {
+            document.querySelectorAll('.chess-square').forEach(square => {
+                square.classList.remove('selected', 'highlight');
+            });
+            selectedSquare = null;
+        }
+
+        // Update board display
+        function updateBoard() {
+            const squares = document.querySelectorAll('.chess-square');
+            squares.forEach((square, index) => {
+                const row = Math.floor(index / 8);
+                const col = index % 8;
+                const piece = game.getPiece(row, col);
+                square.textContent = piece ? (pieceSymbols[piece] || piece) : '';
+            });
+        }
+
+        // Initialize single player mode
+        function initSinglePlayer() {
+            document.getElementById('game-status').textContent = t.whitesTurn;
+            document.getElementById('game-status').className = 'game-status status-playing';
+            document.getElementById('player-info').style.display = 'flex';
+            gameStarted = true;
+            updateStatus();
+        }
+
+        // Initialize multiplayer mode
+        function initMultiplayer() {
+            document.getElementById('game-status').textContent = t.waitingForOpponent;
+            document.getElementById('game-status').className = 'game-status status-waiting';
+            
+            // Connect to server
+            socket = io();
+            
+            // Socket event handlers
+            socket.on('waiting-for-opponent', () => {
+                document.getElementById('game-status').textContent = t.waitingForOpponent;
+                document.getElementById('game-status').className = 'game-status status-waiting';
+            });
+
+            socket.on('game-start', (data) => {
+                gameStarted = true;
+                playerColor = data.players.find(p => p.id === socket.id).color;
+                
+                document.getElementById('player-info').style.display = 'flex';
+                document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
+                document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
+                
+                updateStatus();
+            });
+
+            socket.on('opponent-move', (moveData) => {
+                // Convert back to row/col and make the move
+                const [fromRow, fromCol] = game.stringToPosition(moveData.from);
+                const [toRow, toCol] = game.stringToPosition(moveData.to);
+                
+                game.makeMove(fromRow, fromCol, toRow, toCol);
+                updateBoard();
+                addToHistory(`${moveData.from}-${moveData.to}`);
+                updateStatus();
+            });
+
+            socket.on('opponent-left', () => {
+                document.getElementById('game-status').textContent = t.opponentLeft;
+                document.getElementById('game-status').className = 'game-status status-ended';
+                gameStarted = false;
+            });
+
+            socket.on('lobby-full', () => {
+                document.getElementById('game-status').textContent = t.lobbyFull;
+                document.getElementById('game-status').className = 'game-status status-ended';
+            });
+
+            socket.on('connect_error', () => {
+                document.getElementById('game-status').textContent = t.connectionError;
+                document.getElementById('game-status').className = 'game-status status-ended';
+            });
+
+            // Join the multiplayer lobby
+            socket.emit('join-lobby');
+        }
+
+        // Update game status
+        function updateStatus() {
+            let status = '';
+            let statusClass = 'status-playing';
+
+            if (gameMode === 'multiplayer' && gameStarted && playerColor) {
+                const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
+                               (game.turn === 'b' && playerColor === 'black');
+                status = isMyTurn ? t.yourTurn : t.opponentTurn;
+            } else if (gameMode === 'single') {
+                status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+            }
+
+            document.getElementById('game-status').textContent = status;
+            document.getElementById('game-status').className = 'game-status ' + statusClass;
+
+            // Update active player highlight
+            if (gameStarted) {
+                document.getElementById('white-player').classList.toggle('active', game.turn === 'w');
+                document.getElementById('black-player').classList.toggle('active', game.turn === 'b');
+            }
+        }
+
+        // Add move to history
+        function addToHistory(move) {
+            const historyList = document.getElementById('history-list');
+            const moveElement = document.createElement('div');
+            moveElement.textContent = `${Math.ceil(game.history.length / 2)}. ${move}`;
+            moveElement.style.padding = '2px 5px';
+            moveElement.style.borderBottom = '1px solid #eee';
+            historyList.appendChild(moveElement);
+            historyList.scrollTop = historyList.scrollHeight;
+        }
+
+        // Start new game
+        function startNewGame() {
+            game.reset();
+            clearSelection();
+            document.getElementById('history-list').innerHTML = '';
+            createBoard();
+            
+            if (gameMode === 'multiplayer' && socket) {
+                socket.disconnect();
+                // Reconnect and rejoin lobby
+                socket = io();
+                initMultiplayer();
+            } else {
+                gameStarted = true;
+                updateStatus();
+            }
+        }
+
+        // Go to home page
+        function goHome() {
+            if (socket) {
+                socket.disconnect();
+            }
+            window.location.href = `/?lang=${currentLang}`;
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>checkmate: 'Шах и мат!',
+                stalemate: 'Пат!',
+                draw: 'Равенство!',
+                whiteWins: 'Белите печелят!',
+                blackWins: 'Черните печелят!',
+                opponentLeft: 'Противникът напусна играта',
+                newGame: 'Нова игра',
+                home: 'Начало',
+                white: 'Бели',
+                black: 'Черни',
+                historyTitle: 'История на ходовете',
+                lobbyFull: 'Лобито е пълно. Моля, опитайте отново по-късно.',
+                connectionError: 'Грешка във връзката. Моля, обновете страницата.'
+            }
+        };
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameMode = urlParams.get('mode') || 'single';
+        const currentLang = urlParams.get('lang') || 'en';
+        const t = translations[currentLang];
+
+        // Game variables
+        let board = null;
+        let game = new Chess();
+        let socket = null;
+        let playerColor = null;
+        let gameStarted = false;
+        let moveHistory = [];
+
+        // Check if all required libraries are loaded
+        function checkLibrariesLoaded() {
+            const jqueryLoaded = typeof $ !== 'undefined';
+            const chessboardLoaded = typeof Chessboard2 !== 'undefined'; // Updated for chessboard2
+            const chessLoaded = typeof Chess !== 'undefined';
+            const ioLoaded = typeof io !== 'undefined';
+            
+            console.log('Library status:', {
+                jquery: jqueryLoaded,
+                chessboard: chessboardLoaded,
+                chess: chessLoaded,
+                socketio: ioLoaded
+            });
+            
+            return jqueryLoaded && chessboardLoaded && chessLoaded && ioLoaded;
+        }
+
+        // Initialize the application
+        function init() {
+            updateLanguage();
+            
+            // Wait for all libraries to load
+            if (!checkLibrariesLoaded()) {
+                setTimeout(init, 100);
+                return;
+            }
+            
+            if (gameMode === 'multiplayer') {
+                initMultiplayer();
+            } else {
+                initSinglePlayer();
+            }
+        }
+
+        // Update page language
+        function updateLanguage() {
+            document.documentElement.lang = currentLang;
+            document.getElementById('game-title').textContent = 
+                gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
+            document.getElementById('new-game-text').textContent = t.newGame;
+            document.getElementById('home-text').textContent = t.home;
+            document.getElementById('white-label').textContent = t.white;
+            document.getElementById('black-label').textContent = t.black;
+            document.getElementById('history-title').textContent = t.historyTitle;
+        }
+
+        // Initialize single player mode
+        function initSinglePlayer() {
+            if (!checkLibrariesLoaded()) {
+                document.getElementById('game-status').textContent = 'Loading chess engine...';
+                setTimeout(() => initSinglePlayer(), 500);
+                return;
+            }
+
+            document.getElementById('game-status').textContent = t.yourTurn;
+            document.getElementById('game-status').className = 'game-status status-playing';
+            document.getElementById('player-info').style.display = 'flex';
+            
+            try {
+                board = Chessboard2('chessboard', {
+                    draggable: true,
+                    position: 'start',
+                    onDragStart: onDragStart,
+                    onDrop: onDrop,
+                    onSnapEnd: onSnapEnd
+                });
+
+                gameStarted = true;
+                updateStatus();
+            } catch (error) {
+                console.error('Error initializing chessboard:', error);
+                document.getElementById('game-status').textContent = 'Error loading chess board. Please refresh the page.';
+                document.getElementById('game-status').className = 'game-status status-ended';
+            }
+        }
+
+        // Initialize multiplayer mode
+        function initMultiplayer() {
+            if (!checkLibrariesLoaded()) {
+                document.getElementById('game-status').textContent = 'Loading...';
+                setTimeout(() => initMultiplayer(), 500);
+                return;
+            }
+
+            document.getElementById('game-status').textContent = t.waitingForOpponent;
+            document.getElementById('game-status').className = 'game-status status-waiting';
+            
+            // Connect to server
+            socket = io();
+            
+            // Socket event handlers
+            socket.on('waiting-for-opponent', () => {
+                document.getElementById('game-status').textContent = t.waitingForOpponent;
+                document.getElementById('game-status').className = 'game-status status-waiting';
+            });
+
+            socket.on('game-start', (data) => {
+                // Double-check libraries are loaded
+                if (!checkLibrariesLoaded()) {
+                    console.error('Libraries not loaded when game started');
+                    return;
+                }
+                
+                gameStarted = true;
+                playerColor = data.players.find(p => p.id === socket.id).color;
+                
+                document.getElementById('player-info').style.display = 'flex';
+                document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
+                document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
+                
+                // Initialize board
+                board = Chessboard2('chessboard', {
+                    draggable: true,
+                    position: 'start',
+                    orientation: playerColor,
+                    onDragStart: onDragStart,
+                    onDrop: onDrop,
+                    onSnapEnd: onSnapEnd
+                });
+
+                updateStatus();
+            });
+
+            socket.on('opponent-move', (moveData) => {
+                // Make the move on the board
+                game.move({
+                    from: moveData.from,
+                    to: moveData.to,
+                    promotion: 'q' // Always promote to queen for simplicity
+                });
+                
+                board.position(game.fen());
+                addToHistory(moveData.from + '-' + moveData.to);
+                updateStatus();
+            });
+
+            socket.on('opponent-left', () => {
+                document.getElementById('game-status').textContent = t.opponentLeft;
+                document.getElementById('game-status').className = 'game-status status-ended';
+                gameStarted = false;
+            });
+
+            socket.on('lobby-full', () => {
+                document.getElementById('game-status').textContent = t.lobbyFull;
+                document.getElementById('game-status').className = 'game-status status-ended';
+            });
+
+            socket.on('connect_error', () => {
+                document.getElementById('game-status').textContent = t.connectionError;
+                document.getElementById('game-status').className = 'game-status status-ended';
+            });
+
+            // Join the multiplayer lobby
+            socket.emit('join-lobby');
+        }
+
+        // Chess.js integration
+        function onDragStart(source, piece, position, orientation) {
+            // Do not pick up pieces if the game is over
+            if (game.game_over()) return false;
+
+            // Only pick up pieces for the side to move
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+
+            // In multiplayer, only allow moves when it's your turn
+            if (gameMode === 'multiplayer' && gameStarted) {
+                if (playerColor !== game.turn() === 'w' ? 'white' : 'black') {
+                    return false;
+                }
+            }
+        }
+
+        function onDrop(source, target) {
+            // See if the move is legal
+            var move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q' // NOTE: always promote to a queen for example simplicity
+            });
+
+            // Illegal move
+            if (move === null) return 'snapback';
+
+            // Add move to history
+            addToHistory(source + '-' + target);
+
+            // Send move to server in multiplayer mode
+            if (gameMode === 'multiplayer' && socket && gameStarted) {
+                socket.emit('make-move', {
+                    from: source,
+                    to: target,
+                    fen: game.fen()
+                });
+            }
+
+            updateStatus();
+        }
+
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+
+        // Update game status
+        function updateStatus() {
+            let status = '';
+            let statusClass = 'status-playing';
+
+            if (game.in_checkmate()) {
+                status = game.turn() === 'b' ? t.whiteWins : t.blackWins;
+                statusClass = 'status-ended';
+                if (gameMode === 'multiplayer' && socket) {
+                    socket.emit('game-over', { result: 'checkmate', winner: game.turn() === 'b' ? 'white' : 'black' });
+                }
+            } else if (game.in_draw()) {
+                if (game.in_stalemate()) {
+                    status = t.stalemate;
+                } else {
+                    status = t.draw;
+                }
+                statusClass = 'status-ended';
+                if (gameMode === 'multiplayer' && socket) {
+                    socket.emit('game-over', { result: 'draw' });
+                }
+            } else {
+                if (game.in_check()) {
+                    status = t.check + ' ';
+                }
+
+                if (gameMode === 'multiplayer' && gameStarted) {
+                    const isMyTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                                   (game.turn() === 'b' && playerColor === 'black');
+                    status += isMyTurn ? t.yourTurn : t.opponentTurn;
+                } else {
+                    status += game.turn() === 'w' ? t.white + "'s turn" : t.black + "'s turn";
+                }
+            }
+
+            document.getElementById('game-status').textContent = status;
+            document.getElementById('game-status').className = 'game-status ' + statusClass;
+
+            // Update active player highlight
+            if (gameMode === 'single' || gameStarted) {
+                document.getElementById('white-player').classList.toggle('active', game.turn() === 'w');
+                document.getElementById('black-player').classList.toggle('active', game.turn() === 'b');
+            }
+        }
+
+        // Add move to history
+        function addToHistory(move) {
+            moveHistory.push(move);
+            const historyList = document.getElementById('history-list');
+            const moveElement = document.createElement('div');
+            moveElement.textContent = `${Math.ceil(moveHistory.length / 2)}. ${move}`;
+            moveElement.style.padding = '2px 5px';
+            moveElement.style.borderBottom = '1px solid #eee';
+            historyList.appendChild(moveElement);
+            historyList.scrollTop = historyList.scrollHeight;
+        }
+
+        // Start new game
+        function startNewGame() {
+            game = new Chess();
+            moveHistory = [];
+            document.getElementById('history-list').innerHTML = '';
+            
+            if (board) {
+                board.start();
+            }
+            
+            if (gameMode === 'multiplayer' && socket) {
+                socket.disconnect();
+                // Reconnect and rejoin lobby
+                socket = io();
+                initMultiplayer();
+            } else {
+                gameStarted = true;
+                updateStatus();
+            }
+        }
+
+        // Go to home page
+        function goHome() {
+            if (socket) {
+                socket.disconnect();
+            }
+            window.location.href = `/?lang=${currentLang}`;
+        }
+
+        // Handle window resize
+        function resizeBoard() {
+            if (board) {
+                board.resize();
+            }
+        }
+
+        // Event listeners
+        window.addEventListener('resize', resizeBoard);
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // Initialize when page loads - wait for all scripts
+        function waitForLibrariesAndInit() {
+            if (checkLibrariesLoaded()) {
+                init();
+            } else {
+                setTimeout(waitForLibrariesAndInit, 100);
+            }
+        }
+
+        // Use both DOMContentLoaded and window.onload to ensure everything is ready
+        document.addEventListener('DOMContentLoaded', waitForLibrariesAndInit);
+        window.addEventListener('load', () => {
+            // Fallback initialization if DOMContentLoaded didn't work
+            if (!gameStarted && gameMode === 'single') {
+                waitForLibrariesAndInit();
+            }
+        });
+    </script>
+</body>
+</html>
