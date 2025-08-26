@@ -101,10 +101,32 @@ io.on('connection', (socket) => {
 
     // Update game state
     gameState.currentGame = moveData.fen;
-    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';    // Handle game end conditions
-    if (moveData.isCheckmate || moveData.isStalemate) {
+    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+
+    // Validate move data before broadcasting
+    const broadcastMove = {
+        from: moveData.from,
+        to: moveData.to,
+        piece: moveData.piece,
+        fen: moveData.fen,
+        currentPlayer: gameState.currentPlayer,
+        isCheck: Boolean(moveData.isCheck),
+        isCheckmate: Boolean(moveData.isCheckmate),
+        isStalemate: Boolean(moveData.isStalemate),
+        isDraw: Boolean(moveData.isDraw),
+        gameStatus: moveData.gameStatus || 'active',
+        promotedTo: moveData.promotedTo
+    };
+
+    // Broadcast move to ALL players in the lobby, including the sender
+    io.to('game-lobby').emit('move-update', broadcastMove);
+
+    // Handle game end conditions
+    if (moveData.isCheckmate || moveData.isStalemate || moveData.isDraw) {
         io.to('game-lobby').emit('game-over', {
-            type: moveData.isCheckmate ? 'checkmate' : 'stalemate',
+            type: moveData.isCheckmate ? 'checkmate' : 
+                  moveData.isStalemate ? 'stalemate' : 
+                  moveData.gameStatus,
             winner: moveData.isCheckmate ? player.color : null
         });
         
@@ -114,14 +136,6 @@ io.on('connection', (socket) => {
             io.to('game-lobby').emit('game-reset');
         }, 5000);
     }
-
-    // Broadcast move to all players in the lobby
-    socket.to('game-lobby').emit('opponent-move', {
-      from: moveData.from,
-      to: moveData.to,
-      fen: moveData.fen,
-      currentPlayer: gameState.currentPlayer
-    });
 
     console.log(`Move made: ${moveData.from} to ${moveData.to}`);
   });

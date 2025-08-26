@@ -56,12 +56,20 @@
             color: #d63031;
             font-weight: bold;
         }
+        .status-check {
+            color: #e17055;
+            font-weight: bold;
+            animation: blink 1s ease-in-out infinite alternate;
+        }
+        @keyframes blink {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
         .player.active {
             background-color: #e8f5e9;
             border-radius: 5px;
             padding: 5px;
             box-shadow: 0 0 5px rgba(0,128,0,0.3);
-        }
         }
     </style>
 </head>
@@ -294,8 +302,11 @@
             }
             
             stringToPosition(pos) {
+                if (!pos || typeof pos !== 'string' || pos.length !== 2) return null;
                 const col = pos.charCodeAt(0) - 97;
                 const row = 8 - parseInt(pos[1]);
+                // Validate coordinates are within board bounds
+                if (row < 0 || row > 7 || col < 0 || col > 7) return null;
                 return [row, col];
             }
             
@@ -496,7 +507,13 @@
                         socket.emit('make-move', {
                             from: move.from,
                             to: move.to,
-                            fen: 'simple-chess-state' // We don't use FEN in our simple version
+                            piece: game.getPiece(row, col),
+                            isCheck: move.isCheck,
+                            isCheckmate: game.gameStatus === 'checkmate',
+                            isStalemate: game.gameStatus === 'stalemate',
+                            isDraw: game.gameStatus.startsWith('draw-'),
+                            gameStatus: game.gameStatus,
+                            fen: 'simple-chess-state'
                         });
                     }
                     
@@ -567,15 +584,40 @@
                 updateStatus();
             });
 
-            socket.on('opponent-move', (moveData) => {
-                // Convert back to row/col and make the move
-                const [fromRow, fromCol] = game.stringToPosition(moveData.from);
-                const [toRow, toCol] = game.stringToPosition(moveData.to);
+            socket.on('move-update', (moveData) => {
+                if (!moveData || !moveData.from || !moveData.to) return;
+
+                // Convert coordinates and validate
+                const fromPos = game.stringToPosition(moveData.from);
+                const toPos = game.stringToPosition(moveData.to);
                 
-                game.makeMove(fromRow, fromCol, toRow, toCol);
+                if (!fromPos || !toPos) return;
+                
+                const [fromRow, fromCol] = fromPos;
+                const [toRow, toCol] = toPos;
+                
+                // Make the move and get the result
+                const move = game.makeMove(fromRow, fromCol, toRow, toCol, moveData.promotedTo);
+                if (!move) return;
+                
+                // Synchronize game state with server
+                move.isCheck = moveData.isCheck;
+                move.isCheckmate = moveData.isCheckmate;
+                move.isStalemate = moveData.isStalemate;
+                move.isDraw = moveData.isDraw;
+                move.gameStatus = moveData.gameStatus;
+                
+                // Update the game state
+                game.check = moveData.isCheck;
+                game.gameStatus = moveData.isCheckmate ? 'checkmate' :
+                                moveData.isStalemate ? 'stalemate' :
+                                moveData.isDraw ? moveData.gameStatus :
+                                'active';
+                
+                // Update the UI
                 updateBoard();
                 addToHistory(`${moveData.from}-${moveData.to}`);
-                updateStatus();
+                updateStatus(move);
             });
 
             socket.on('opponent-left', () => {
@@ -625,6 +667,7 @@
                     overlay.style.display = 'flex';
                 } else if (moveResult.isCheck) {
                     status = t.check;
+                    statusClass = 'status-check';
                 }
             }
 
