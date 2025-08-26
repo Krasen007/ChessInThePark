@@ -73,7 +73,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle chess moves
+    // Handle chess moves
   socket.on('make-move', (moveData) => {
     if (!gameState.gameStarted) {
       socket.emit('error', 'Game not started');
@@ -93,9 +93,27 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Update game state (we'll validate with chess.js on client side for now)
+    // Handle pawn promotion request
+    if (moveData.needsPromotion) {
+      socket.emit('promotion-required');
+      return;
+    }
+
+    // Update game state
     gameState.currentGame = moveData.fen;
-    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';    // Handle game end conditions
+    if (moveData.isCheckmate || moveData.isStalemate) {
+        io.to('game-lobby').emit('game-over', {
+            type: moveData.isCheckmate ? 'checkmate' : 'stalemate',
+            winner: moveData.isCheckmate ? player.color : null
+        });
+        
+        // Reset the game state after a delay
+        setTimeout(() => {
+            resetGame();
+            io.to('game-lobby').emit('game-reset');
+        }, 5000);
+    }
 
     // Broadcast move to all players in the lobby
     socket.to('game-lobby').emit('opponent-move', {

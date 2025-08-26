@@ -28,6 +28,41 @@
         .chess-square.dark { background-color: #b58863; }
         .chess-square.selected { background-color: #ffff00 !important; }
         .chess-square.highlight { background-color: #90ee90 !important; }
+        .game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            display: none;
+        }
+        .game-over-message {
+            background-color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 24px;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .chessboard-container {
+            position: relative;
+        }
+        .status-ended {
+            color: #d63031;
+            font-weight: bold;
+        }
+        .player.active {
+            background-color: #e8f5e9;
+            border-radius: 5px;
+            padding: 5px;
+            box-shadow: 0 0 5px rgba(0,128,0,0.3);
+        }
+        }
     </style>
 </head>
 <body style="background: #f0f0f0;">
@@ -50,6 +85,9 @@
 
         <div class="chessboard-container">
             <div id="chessboard" class="simple-chessboard"></div>
+            <div id="game-over-overlay" class="game-over-overlay">
+                <div id="game-over-message" class="game-over-message"></div>
+            </div>
         </div>
 
         <div class="game-controls">
@@ -69,6 +107,8 @@
 
     <!-- Load Socket.io from our server -->
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Load chess logic -->
+    <script src="/js/chess-logic.js"></script>
     <!-- Simple Chess.js alternative -->
     <script>
         // Simple chess logic
@@ -77,6 +117,13 @@
                 this.board = this.getStartingPosition();
                 this.turn = 'w';
                 this.history = [];
+                this.gameStatus = 'active'; // active, checkmate, stalemate
+                this.check = false;
+                this.lastMove = null;
+                this.castlingRights = { K: true, Q: true, k: true, q: true };
+                this.halfMoveClock = 0;
+                this.positions = new Map(); // For threefold repetition
+                this.pendingPromotion = null;
             }
             
             getStartingPosition() {
@@ -101,7 +148,6 @@
             }
             
             isValidMove(fromRow, fromCol, toRow, toCol) {
-                // Simple validation - just check if there's a piece to move
                 const piece = this.getPiece(fromRow, fromCol);
                 if (!piece) return false;
                 
@@ -110,26 +156,133 @@
                 if ((isWhite && this.turn !== 'w') || (!isWhite && this.turn !== 'b')) {
                     return false;
                 }
-                
-                return true; // For now, allow all moves for simplicity
+
+                // Use ChessRules to validate the move
+                if (!ChessRules.isValidMove(piece, fromRow, fromCol, toRow, toCol, this.board)) {
+                    return false;
+                }
+
+                // Test if move would leave king in check
+                const tempPiece = this.board[toRow][toCol];
+                this.board[toRow][toCol] = piece;
+                this.board[fromRow][fromCol] = null;
+
+                const inCheck = ChessRules.isInCheck(this.board, isWhite);
+
+                // Undo test move
+                this.board[fromRow][fromCol] = piece;
+                this.board[toRow][toCol] = tempPiece;
+
+                return !inCheck;
             }
             
-            makeMove(fromRow, fromCol, toRow, toCol) {
+            makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
+                if (this.pendingPromotion && !promotionPiece) {
+                    return false;
+                }
+
+                const piece = this.getPiece(fromRow, fromCol);
+                const isWhite = piece === piece.toUpperCase();
+                const pieceType = piece.toLowerCase();
+                const targetPiece = this.getPiece(toRow, toCol);
+
                 if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) {
                     return false;
                 }
-                
-                const piece = this.getPiece(fromRow, fromCol);
+
+                // Update halfmove clock
+                if (pieceType === 'p' || targetPiece) {
+                    this.halfMoveClock = 0;
+                } else {
+                    this.halfMoveClock++;
+                }
+
+                // Handle castling
+                if (pieceType === 'k' && Math.abs(toCol - fromCol) === 2) {
+                    const row = isWhite ? 7 : 0;
+                    const isKingside = toCol > fromCol;
+                    const rookFromCol = isKingside ? 7 : 0;
+                    const rookToCol = isKingside ? 5 : 3;
+                    
+                    // Move rook
+                    this.setPiece(row, rookToCol, isWhite ? 'R' : 'r');
+                    this.setPiece(row, rookFromCol, null);
+                }
+
+                // Handle en passant capture
+                if (pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !targetPiece) {
+                    const captureRow = isWhite ? toRow + 1 : toRow - 1;
+                    this.setPiece(captureRow, toCol, null);
+                }
+
+                // Make the move
                 this.setPiece(toRow, toCol, piece);
                 this.setPiece(fromRow, fromCol, null);
-                
+
+                // Handle pawn promotion
+                if (pieceType === 'p' && (toRow === 0 || toRow === 7)) {
+                    if (promotionPiece) {
+                        const promotedPiece = isWhite ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase();
+                        this.setPiece(toRow, toCol, promotedPiece);
+                        this.pendingPromotion = null;
+                    } else {
+                        this.pendingPromotion = { row: toRow, col: toCol, isWhite };
+                        return { needsPromotion: true };
+                    }
+                }
+
+                // Update castling rights
+                if (pieceType === 'k') {
+                    if (isWhite) {
+                        this.castlingRights.K = false;
+                        this.castlingRights.Q = false;
+                    } else {
+                        this.castlingRights.k = false;
+                        this.castlingRights.q = false;
+                    }
+                } else if (pieceType === 'r') {
+                    if (fromRow === 7 && fromCol === 0) this.castlingRights.Q = false;
+                    if (fromRow === 7 && fromCol === 7) this.castlingRights.K = false;
+                    if (fromRow === 0 && fromCol === 0) this.castlingRights.q = false;
+                    if (fromRow === 0 && fromCol === 7) this.castlingRights.k = false;
+                }
+
+                // Store last move for en passant
+                this.lastMove = [fromRow, fromCol, toRow, toCol];
+
+                // Update position history for threefold repetition
+                const position = this.getBoardFEN();
+                this.positions.set(position, (this.positions.get(position) || 0) + 1);
+
                 // Switch turns
                 this.turn = this.turn === 'w' ? 'b' : 'w';
+                
+                // Check game status
+                const nextIsWhite = this.turn === 'w';
+                this.check = ChessRules.isInCheck(this.board, nextIsWhite);
+                
+                // Check for game end conditions
+                if (!ChessRules.hasLegalMoves(this.board, nextIsWhite)) {
+                    if (this.check) {
+                        this.gameStatus = 'checkmate';
+                    } else {
+                        this.gameStatus = 'stalemate';
+                    }
+                } else if (this.halfMoveClock >= 100) {
+                    this.gameStatus = 'draw-fifty';
+                } else if (this.isThreefoldRepetition()) {
+                    this.gameStatus = 'draw-repetition';
+                }
                 
                 const move = {
                     from: this.positionToString(fromRow, fromCol),
                     to: this.positionToString(toRow, toCol),
-                    piece: piece
+                    piece: piece,
+                    isCheck: this.check,
+                    isCheckmate: this.gameStatus === 'checkmate',
+                    isStalemate: this.gameStatus === 'stalemate',
+                    isDraw: this.gameStatus.startsWith('draw-'),
+                    promotedTo: promotionPiece
                 };
                 
                 this.history.push(move);
@@ -146,10 +299,46 @@
                 return [row, col];
             }
             
+            getBoardFEN() {
+                let fen = '';
+                for (let row = 0; row < 8; row++) {
+                    let emptyCount = 0;
+                    for (let col = 0; col < 8; col++) {
+                        const piece = this.board[row][col];
+                        if (piece) {
+                            if (emptyCount > 0) {
+                                fen += emptyCount;
+                                emptyCount = 0;
+                            }
+                            fen += piece;
+                        } else {
+                            emptyCount++;
+                        }
+                    }
+                    if (emptyCount > 0) {
+                        fen += emptyCount;
+                    }
+                    if (row < 7) fen += '/';
+                }
+                return fen;
+            }
+
+            isThreefoldRepetition() {
+                const currentPosition = this.getBoardFEN();
+                return this.positions.get(currentPosition) >= 3;
+            }
+
             reset() {
                 this.board = this.getStartingPosition();
                 this.turn = 'w';
                 this.history = [];
+                this.gameStatus = 'active';
+                this.check = false;
+                this.lastMove = null;
+                this.castlingRights = { K: true, Q: true, k: true, q: true };
+                this.halfMoveClock = 0;
+                this.positions = new Map();
+                this.pendingPromotion = null;
             }
         }
         
@@ -173,8 +362,12 @@
                 yourTurn: 'Your turn',
                 whitesTurn: "White's turn",
                 blacksTurn: "Black's turn",
-                whiteWins: 'White wins!',
-                blackWins: 'Black wins!',
+                whiteWins: 'White wins by checkmate!',
+                blackWins: 'Black wins by checkmate!',
+                stalemate: 'Game drawn by stalemate!',
+                drawRepetition: 'Game drawn by threefold repetition!',
+                drawFifty: 'Game drawn by fifty-move rule!',
+                check: 'Check!',
                 opponentLeft: 'Opponent left the game',
                 newGame: 'New Game',
                 home: 'Home',
@@ -294,6 +487,7 @@
                 
                 const move = game.makeMove(fromRow, fromCol, row, col);
                 if (move) {
+                    updateStatus(move);
                     updateBoard();
                     addToHistory(`${move.from}-${move.to}`);
                     
@@ -405,20 +599,50 @@
         }
 
         // Update game status
-        function updateStatus() {
+        function updateStatus(moveResult) {
             let status = '';
             let statusClass = 'status-playing';
+            const overlay = document.getElementById('game-over-overlay');
+            const messageEl = document.getElementById('game-over-message');
 
-            if (gameMode === 'multiplayer' && gameStarted && playerColor) {
-                const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
-                               (game.turn === 'b' && playerColor === 'black');
-                status = isMyTurn ? t.yourTurn : t.opponentTurn;
-            } else if (gameMode === 'single') {
-                status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+            // Handle game end conditions first
+            if (moveResult) {
+                if (moveResult.isCheckmate) {
+                    status = game.turn === 'b' ? t.whiteWins : t.blackWins;
+                    statusClass = 'status-ended';
+                    messageEl.textContent = status;
+                    overlay.style.display = 'flex';
+                } else if (moveResult.isStalemate) {
+                    status = t.stalemate;
+                    statusClass = 'status-ended';
+                    messageEl.textContent = status;
+                    overlay.style.display = 'flex';
+                } else if (moveResult.isDraw) {
+                    status = moveResult.gameStatus === 'draw-repetition' ? 
+                        t.drawRepetition : t.drawFifty;
+                    statusClass = 'status-ended';
+                    messageEl.textContent = status;
+                    overlay.style.display = 'flex';
+                } else if (moveResult.isCheck) {
+                    status = t.check;
+                }
             }
 
-            document.getElementById('game-status').textContent = status;
-            document.getElementById('game-status').className = 'game-status ' + statusClass;
+            // If game is still active, show regular turn status
+            if (!status) {
+                if (gameMode === 'multiplayer' && gameStarted && playerColor) {
+                    const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
+                                   (game.turn === 'b' && playerColor === 'black');
+                    status = isMyTurn ? t.yourTurn : t.opponentTurn;
+                } else if (gameMode === 'single') {
+                    status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+                }
+            }
+            
+            // Update the status display
+            const statusElement = document.getElementById('game-status');
+            statusElement.textContent = status;
+            statusElement.className = `game-status ${statusClass}`;
 
             // Update active player highlight
             if (gameStarted) {
@@ -473,363 +697,6 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', init);
-    </script>
-</body>
-</html>checkmate: 'Шах и мат!',
-                stalemate: 'Пат!',
-                draw: 'Равенство!',
-                whiteWins: 'Белите печелят!',
-                blackWins: 'Черните печелят!',
-                opponentLeft: 'Противникът напусна играта',
-                newGame: 'Нова игра',
-                home: 'Начало',
-                white: 'Бели',
-                black: 'Черни',
-                historyTitle: 'История на ходовете',
-                lobbyFull: 'Лобито е пълно. Моля, опитайте отново по-късно.',
-                connectionError: 'Грешка във връзката. Моля, обновете страницата.'
-            }
-        };
-
-        // Get URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const gameMode = urlParams.get('mode') || 'single';
-        const currentLang = urlParams.get('lang') || 'en';
-        const t = translations[currentLang];
-
-        // Game variables
-        let board = null;
-        let game = new Chess();
-        let socket = null;
-        let playerColor = null;
-        let gameStarted = false;
-        let moveHistory = [];
-
-        // Check if all required libraries are loaded
-        function checkLibrariesLoaded() {
-            const jqueryLoaded = typeof $ !== 'undefined';
-            const chessboardLoaded = typeof Chessboard2 !== 'undefined'; // Updated for chessboard2
-            const chessLoaded = typeof Chess !== 'undefined';
-            const ioLoaded = typeof io !== 'undefined';
-            
-            console.log('Library status:', {
-                jquery: jqueryLoaded,
-                chessboard: chessboardLoaded,
-                chess: chessLoaded,
-                socketio: ioLoaded
-            });
-            
-            return jqueryLoaded && chessboardLoaded && chessLoaded && ioLoaded;
-        }
-
-        // Initialize the application
-        function init() {
-            updateLanguage();
-            
-            // Wait for all libraries to load
-            if (!checkLibrariesLoaded()) {
-                setTimeout(init, 100);
-                return;
-            }
-            
-            if (gameMode === 'multiplayer') {
-                initMultiplayer();
-            } else {
-                initSinglePlayer();
-            }
-        }
-
-        // Update page language
-        function updateLanguage() {
-            document.documentElement.lang = currentLang;
-            document.getElementById('game-title').textContent = 
-                gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
-            document.getElementById('new-game-text').textContent = t.newGame;
-            document.getElementById('home-text').textContent = t.home;
-            document.getElementById('white-label').textContent = t.white;
-            document.getElementById('black-label').textContent = t.black;
-            document.getElementById('history-title').textContent = t.historyTitle;
-        }
-
-        // Initialize single player mode
-        function initSinglePlayer() {
-            if (!checkLibrariesLoaded()) {
-                document.getElementById('game-status').textContent = 'Loading chess engine...';
-                setTimeout(() => initSinglePlayer(), 500);
-                return;
-            }
-
-            document.getElementById('game-status').textContent = t.yourTurn;
-            document.getElementById('game-status').className = 'game-status status-playing';
-            document.getElementById('player-info').style.display = 'flex';
-            
-            try {
-                board = Chessboard2('chessboard', {
-                    draggable: true,
-                    position: 'start',
-                    onDragStart: onDragStart,
-                    onDrop: onDrop,
-                    onSnapEnd: onSnapEnd
-                });
-
-                gameStarted = true;
-                updateStatus();
-            } catch (error) {
-                console.error('Error initializing chessboard:', error);
-                document.getElementById('game-status').textContent = 'Error loading chess board. Please refresh the page.';
-                document.getElementById('game-status').className = 'game-status status-ended';
-            }
-        }
-
-        // Initialize multiplayer mode
-        function initMultiplayer() {
-            if (!checkLibrariesLoaded()) {
-                document.getElementById('game-status').textContent = 'Loading...';
-                setTimeout(() => initMultiplayer(), 500);
-                return;
-            }
-
-            document.getElementById('game-status').textContent = t.waitingForOpponent;
-            document.getElementById('game-status').className = 'game-status status-waiting';
-            
-            // Connect to server
-            socket = io();
-            
-            // Socket event handlers
-            socket.on('waiting-for-opponent', () => {
-                document.getElementById('game-status').textContent = t.waitingForOpponent;
-                document.getElementById('game-status').className = 'game-status status-waiting';
-            });
-
-            socket.on('game-start', (data) => {
-                // Double-check libraries are loaded
-                if (!checkLibrariesLoaded()) {
-                    console.error('Libraries not loaded when game started');
-                    return;
-                }
-                
-                gameStarted = true;
-                playerColor = data.players.find(p => p.id === socket.id).color;
-                
-                document.getElementById('player-info').style.display = 'flex';
-                document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
-                document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
-                
-                // Initialize board
-                board = Chessboard2('chessboard', {
-                    draggable: true,
-                    position: 'start',
-                    orientation: playerColor,
-                    onDragStart: onDragStart,
-                    onDrop: onDrop,
-                    onSnapEnd: onSnapEnd
-                });
-
-                updateStatus();
-            });
-
-            socket.on('opponent-move', (moveData) => {
-                // Make the move on the board
-                game.move({
-                    from: moveData.from,
-                    to: moveData.to,
-                    promotion: 'q' // Always promote to queen for simplicity
-                });
-                
-                board.position(game.fen());
-                addToHistory(moveData.from + '-' + moveData.to);
-                updateStatus();
-            });
-
-            socket.on('opponent-left', () => {
-                document.getElementById('game-status').textContent = t.opponentLeft;
-                document.getElementById('game-status').className = 'game-status status-ended';
-                gameStarted = false;
-            });
-
-            socket.on('lobby-full', () => {
-                document.getElementById('game-status').textContent = t.lobbyFull;
-                document.getElementById('game-status').className = 'game-status status-ended';
-            });
-
-            socket.on('connect_error', () => {
-                document.getElementById('game-status').textContent = t.connectionError;
-                document.getElementById('game-status').className = 'game-status status-ended';
-            });
-
-            // Join the multiplayer lobby
-            socket.emit('join-lobby');
-        }
-
-        // Chess.js integration
-        function onDragStart(source, piece, position, orientation) {
-            // Do not pick up pieces if the game is over
-            if (game.game_over()) return false;
-
-            // Only pick up pieces for the side to move
-            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-                return false;
-            }
-
-            // In multiplayer, only allow moves when it's your turn
-            if (gameMode === 'multiplayer' && gameStarted) {
-                if (playerColor !== game.turn() === 'w' ? 'white' : 'black') {
-                    return false;
-                }
-            }
-        }
-
-        function onDrop(source, target) {
-            // See if the move is legal
-            var move = game.move({
-                from: source,
-                to: target,
-                promotion: 'q' // NOTE: always promote to a queen for example simplicity
-            });
-
-            // Illegal move
-            if (move === null) return 'snapback';
-
-            // Add move to history
-            addToHistory(source + '-' + target);
-
-            // Send move to server in multiplayer mode
-            if (gameMode === 'multiplayer' && socket && gameStarted) {
-                socket.emit('make-move', {
-                    from: source,
-                    to: target,
-                    fen: game.fen()
-                });
-            }
-
-            updateStatus();
-        }
-
-        function onSnapEnd() {
-            board.position(game.fen());
-        }
-
-        // Update game status
-        function updateStatus() {
-            let status = '';
-            let statusClass = 'status-playing';
-
-            if (game.in_checkmate()) {
-                status = game.turn() === 'b' ? t.whiteWins : t.blackWins;
-                statusClass = 'status-ended';
-                if (gameMode === 'multiplayer' && socket) {
-                    socket.emit('game-over', { result: 'checkmate', winner: game.turn() === 'b' ? 'white' : 'black' });
-                }
-            } else if (game.in_draw()) {
-                if (game.in_stalemate()) {
-                    status = t.stalemate;
-                } else {
-                    status = t.draw;
-                }
-                statusClass = 'status-ended';
-                if (gameMode === 'multiplayer' && socket) {
-                    socket.emit('game-over', { result: 'draw' });
-                }
-            } else {
-                if (game.in_check()) {
-                    status = t.check + ' ';
-                }
-
-                if (gameMode === 'multiplayer' && gameStarted) {
-                    const isMyTurn = (game.turn() === 'w' && playerColor === 'white') || 
-                                   (game.turn() === 'b' && playerColor === 'black');
-                    status += isMyTurn ? t.yourTurn : t.opponentTurn;
-                } else {
-                    status += game.turn() === 'w' ? t.white + "'s turn" : t.black + "'s turn";
-                }
-            }
-
-            document.getElementById('game-status').textContent = status;
-            document.getElementById('game-status').className = 'game-status ' + statusClass;
-
-            // Update active player highlight
-            if (gameMode === 'single' || gameStarted) {
-                document.getElementById('white-player').classList.toggle('active', game.turn() === 'w');
-                document.getElementById('black-player').classList.toggle('active', game.turn() === 'b');
-            }
-        }
-
-        // Add move to history
-        function addToHistory(move) {
-            moveHistory.push(move);
-            const historyList = document.getElementById('history-list');
-            const moveElement = document.createElement('div');
-            moveElement.textContent = `${Math.ceil(moveHistory.length / 2)}. ${move}`;
-            moveElement.style.padding = '2px 5px';
-            moveElement.style.borderBottom = '1px solid #eee';
-            historyList.appendChild(moveElement);
-            historyList.scrollTop = historyList.scrollHeight;
-        }
-
-        // Start new game
-        function startNewGame() {
-            game = new Chess();
-            moveHistory = [];
-            document.getElementById('history-list').innerHTML = '';
-            
-            if (board) {
-                board.start();
-            }
-            
-            if (gameMode === 'multiplayer' && socket) {
-                socket.disconnect();
-                // Reconnect and rejoin lobby
-                socket = io();
-                initMultiplayer();
-            } else {
-                gameStarted = true;
-                updateStatus();
-            }
-        }
-
-        // Go to home page
-        function goHome() {
-            if (socket) {
-                socket.disconnect();
-            }
-            window.location.href = `/?lang=${currentLang}`;
-        }
-
-        // Handle window resize
-        function resizeBoard() {
-            if (board) {
-                board.resize();
-            }
-        }
-
-        // Event listeners
-        window.addEventListener('resize', resizeBoard);
-        
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (socket) {
-                socket.disconnect();
-            }
-        });
-
-        // Initialize when page loads - wait for all scripts
-        function waitForLibrariesAndInit() {
-            if (checkLibrariesLoaded()) {
-                init();
-            } else {
-                setTimeout(waitForLibrariesAndInit, 100);
-            }
-        }
-
-        // Use both DOMContentLoaded and window.onload to ensure everything is ready
-        document.addEventListener('DOMContentLoaded', waitForLibrariesAndInit);
-        window.addEventListener('load', () => {
-            // Fallback initialization if DOMContentLoaded didn't work
-            if (!gameStarted && gameMode === 'single') {
-                waitForLibrariesAndInit();
-            }
-        });
     </script>
 </body>
 </html>
