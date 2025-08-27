@@ -183,15 +183,17 @@ body {
 }
 
 .player.active {
-    background: #e3f2fd;
+    background-color: #e8f5e9;
     border-radius: 5px;
-    padding: 10px;
+    padding: 5px;
+    box-shadow: 0 0 5px rgba(0, 128, 0, 0.3);
 }
 
 .chessboard-container {
     display: flex;
     justify-content: center;
     margin: 30px 0;
+    position: relative;
 }
 
 #chessboard {
@@ -233,28 +235,119 @@ body {
         padding: 30px 20px;
         margin: 20px;
     }
-    
+
     .mode-buttons {
         flex-direction: column;
         align-items: center;
     }
-    
+
     .mode-btn {
         width: 100%;
         max-width: 250px;
     }
-    
+
     .header h1 {
         font-size: 2em;
     }
-    
+
     .game-container {
         margin: 10px;
         padding: 15px;
     }
-    
+
     .player-info {
         flex-direction: column;
         gap: 10px;
     }
+}
+
+/* Simple chess board CSS */
+.simple-chessboard {
+    width: 400px;
+    height: 400px;
+    border: 3px solid #333;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    margin: 0 auto;
+}
+
+.chess-square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.chess-square.light {
+    background-color: #f0d9b5;
+}
+
+.chess-square.dark {
+    background-color: #b58863;
+}
+
+.chess-square.selected {
+    background-color: #ffff00 !important;
+}
+
+.chess-square.highlight {
+    background-color: #90ee90 !important;
+}
+
+.game-over-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    display: none;
+}
+
+.game-over-message {
+    background-color: white;
+    padding: 20px 40px;
+    border-radius: 10px;
+    font-size: 24px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.chessboard-container {
+    position: relative;
+}
+
+.status-ended {
+    color: #d63031;
+    font-weight: bold;
+}
+
+.status-check {
+    color: #e17055;
+    font-weight: bold;
+    animation: blink 1s ease-in-out infinite alternate;
+}
+
+@keyframes blink {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.5;
+    }
+}
+
+.player.active {
+    background-color: #e8f5e9;
+    border-radius: 5px;
+    padding: 5px;
+    box-shadow: 0 0 5px rgba(0, 128, 0, 0.3);
 }
