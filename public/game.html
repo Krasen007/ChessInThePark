@@ -190,6 +190,10 @@
                 }
 
                 const piece = this.getPiece(fromRow, fromCol);
+                if (!piece) {
+                    return false;
+                }
+                
                 const isWhite = piece === piece.toUpperCase();
                 const pieceType = piece.toLowerCase();
                 const targetPiece = this.getPiece(toRow, toCol);
@@ -593,6 +597,9 @@
                 
                 if (!fromPos || !toPos) return;
                 
+                // Validate that there is a piece at the from position
+                if (!game.getPiece(fromPos[0], fromPos[1])) return;
+                
                 const [fromRow, fromCol] = fromPos;
                 const [toRow, toCol] = toPos;
                 
@@ -673,12 +680,18 @@
 
             // If game is still active, show regular turn status
             if (!status) {
-                if (gameMode === 'multiplayer' && gameStarted && playerColor) {
-                    const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
-                                   (game.turn === 'b' && playerColor === 'black');
-                    status = isMyTurn ? t.yourTurn : t.opponentTurn;
-                } else if (gameMode === 'single') {
-                    status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+                // Check if the current player is in check
+                if (game.check) {
+                    status = t.check;
+                    statusClass = 'status-check';
+                } else {
+                    if (gameMode === 'multiplayer' && gameStarted && playerColor) {
+                        const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
+                                       (game.turn === 'b' && playerColor === 'black');
+                        status = isMyTurn ? t.yourTurn : t.opponentTurn;
+                    } else if (gameMode === 'single') {
+                        status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+                    }
                 }
             }
             
@@ -710,6 +723,7 @@
             game.reset();
             clearSelection();
             document.getElementById('history-list').innerHTML = '';
+            document.getElementById('game-over-overlay').style.display = 'none';
             createBoard();
             
             if (gameMode === 'multiplayer' && socket) {
