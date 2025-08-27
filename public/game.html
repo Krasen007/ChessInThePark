@@ -684,15 +684,25 @@
         }
 
         // Add move to history
-        function addToHistory(move) {
-            const historyList = document.getElementById('history-list');
-            const moveElement = document.createElement('div');
-            moveElement.textContent = `${Math.ceil(game.history.length / 2)}. ${move}`;
-            moveElement.style.padding = '2px 5px';
-            moveElement.style.borderBottom = '1px solid #eee';
-            historyList.appendChild(moveElement);
-            historyList.scrollTop = historyList.scrollHeight;
+function addToHistory(move) {
+    const historyList = document.getElementById('history-list');
+    const moveNumber = Math.ceil(game.history.length / 2);
+    const isWhiteMove = game.turn === 'b';
+
+    if (isWhiteMove) {
+        const moveElement = document.createElement('div');
+        moveElement.textContent = `${moveNumber}. ${move}`;
+        moveElement.style.padding = '2px 5px';
+        moveElement.style.borderBottom = '1px solid #eee';
+        historyList.appendChild(moveElement);
+    } else {
+        const lastMoveElement = historyList.lastElementChild;
+        if (lastMoveElement) {
+            lastMoveElement.textContent += ` ${move}`;
         }
+    }
+    historyList.scrollTop = historyList.scrollHeight;
+}
 
         // Start new game
         function startNewGame() {
