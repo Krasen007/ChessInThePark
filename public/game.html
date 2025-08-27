@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +17,7 @@
             grid-template-rows: repeat(8, 1fr);
             margin: 0 auto;
         }
+
         .chess-square {
             display: flex;
             align-items: center;
@@ -24,10 +26,23 @@
             cursor: pointer;
             user-select: none;
         }
-        .chess-square.light { background-color: #f0d9b5; }
-        .chess-square.dark { background-color: #b58863; }
-        .chess-square.selected { background-color: #ffff00 !important; }
-        .chess-square.highlight { background-color: #90ee90 !important; }
+
+        .chess-square.light {
+            background-color: #f0d9b5;
+        }
+
+        .chess-square.dark {
+            background-color: #b58863;
+        }
+
+        .chess-square.selected {
+            background-color: #ffff00 !important;
+        }
+
+        .chess-square.highlight {
+            background-color: #90ee90 !important;
+        }
+
         .game-over-overlay {
             position: absolute;
             top: 0;
@@ -41,44 +56,56 @@
             z-index: 1000;
             display: none;
         }
+
         .game-over-message {
             background-color: white;
             padding: 20px 40px;
             border-radius: 10px;
             font-size: 24px;
             text-align: center;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
+
         .chessboard-container {
             position: relative;
         }
+
         .status-ended {
             color: #d63031;
             font-weight: bold;
         }
+
         .status-check {
             color: #e17055;
             font-weight: bold;
             animation: blink 1s ease-in-out infinite alternate;
         }
+
         @keyframes blink {
-            from { opacity: 1; }
-            to { opacity: 0.5; }
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0.5;
+            }
         }
+
         .player.active {
             background-color: #e8f5e9;
             border-radius: 5px;
             padding: 5px;
-            box-shadow: 0 0 5px rgba(0,128,0,0.3);
+            box-shadow: 0 0 5px rgba(0, 128, 0, 0.3);
         }
     </style>
 </head>
+
 <body style="background: #f0f0f0;">
     <div class="game-container">
         <div class="game-header">
             <h1 class="game-title" id="game-title">Chess Game</h1>
             <div class="game-status" id="game-status">Loading...</div>
-            
+
             <div class="player-info" id="player-info" style="display: none;">
                 <div class="player" id="white-player">
                     <div>⚪ <span id="white-label">White</span></div>
@@ -109,7 +136,9 @@
 
         <div id="move-history" style="margin-top: 20px; text-align: center;">
             <h3 id="history-title">Move History</h3>
-            <div id="history-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 5px;"></div>
+            <div id="history-list"
+                style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 5px;">
+            </div>
         </div>
     </div>
 
@@ -133,32 +162,32 @@
                 this.positions = new Map(); // For threefold repetition
                 this.pendingPromotion = null;
             }
-            
+
             getStartingPosition() {
                 return [
-                    ['r','n','b','q','k','b','n','r'],
-                    ['p','p','p','p','p','p','p','p'],
-                    [null,null,null,null,null,null,null,null],
-                    [null,null,null,null,null,null,null,null],
-                    [null,null,null,null,null,null,null,null],
-                    [null,null,null,null,null,null,null,null],
-                    ['P','P','P','P','P','P','P','P'],
-                    ['R','N','B','Q','K','B','N','R']
+                    ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+                    ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+                    [null, null, null, null, null, null, null, null],
+                    [null, null, null, null, null, null, null, null],
+                    [null, null, null, null, null, null, null, null],
+                    [null, null, null, null, null, null, null, null],
+                    ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+                    ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
                 ];
             }
-            
+
             getPiece(row, col) {
                 return this.board[row][col];
             }
-            
+
             setPiece(row, col, piece) {
                 this.board[row][col] = piece;
             }
-            
+
             isValidMove(fromRow, fromCol, toRow, toCol) {
                 const piece = this.getPiece(fromRow, fromCol);
                 if (!piece) return false;
-                
+
                 // Check if it's the right player's turn
                 const isWhite = piece === piece.toUpperCase();
                 if ((isWhite && this.turn !== 'w') || (!isWhite && this.turn !== 'b')) {
@@ -183,7 +212,7 @@
 
                 return !inCheck;
             }
-            
+
             makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
                 if (this.pendingPromotion && !promotionPiece) {
                     return false;
@@ -193,7 +222,7 @@
                 if (!piece) {
                     return false;
                 }
-                
+
                 const isWhite = piece === piece.toUpperCase();
                 const pieceType = piece.toLowerCase();
                 const targetPiece = this.getPiece(toRow, toCol);
@@ -215,7 +244,7 @@
                     const isKingside = toCol > fromCol;
                     const rookFromCol = isKingside ? 7 : 0;
                     const rookToCol = isKingside ? 5 : 3;
-                    
+
                     // Move rook
                     this.setPiece(row, rookToCol, isWhite ? 'R' : 'r');
                     this.setPiece(row, rookFromCol, null);
@@ -268,11 +297,11 @@
 
                 // Switch turns
                 this.turn = this.turn === 'w' ? 'b' : 'w';
-                
+
                 // Check game status
                 const nextIsWhite = this.turn === 'w';
                 this.check = ChessRules.isInCheck(this.board, nextIsWhite);
-                
+
                 // Check for game end conditions
                 if (!ChessRules.hasLegalMoves(this.board, nextIsWhite)) {
                     if (this.check) {
@@ -285,7 +314,7 @@
                 } else if (this.isThreefoldRepetition()) {
                     this.gameStatus = 'draw-repetition';
                 }
-                
+
                 const move = {
                     from: this.positionToString(fromRow, fromCol),
                     to: this.positionToString(toRow, toCol),
@@ -296,15 +325,15 @@
                     isDraw: this.gameStatus.startsWith('draw-'),
                     promotedTo: promotionPiece
                 };
-                
+
                 this.history.push(move);
                 return move;
             }
-            
+
             positionToString(row, col) {
                 return String.fromCharCode(97 + col) + (8 - row);
             }
-            
+
             stringToPosition(pos) {
                 if (!pos || typeof pos !== 'string' || pos.length !== 2) return null;
                 const col = pos.charCodeAt(0) - 97;
@@ -313,7 +342,7 @@
                 if (row < 0 || row > 7 || col < 0 || col > 7) return null;
                 return [row, col];
             }
-            
+
             getBoardFEN() {
                 let fen = '';
                 for (let row = 0; row < 8; row++) {
@@ -356,7 +385,7 @@
                 this.pendingPromotion = null;
             }
         }
-        
+
         // Piece symbols
         const pieceSymbols = {
             'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
@@ -432,8 +461,11 @@
         function init() {
             updateLanguage();
             createBoard();
-            
+
+            // Hide player info and disable board for multiplayer until game starts
             if (gameMode === 'multiplayer') {
+                document.getElementById('player-info').style.display = 'none';
+                setBoardEnabled(false);
                 initMultiplayer();
             } else {
                 initSinglePlayer();
@@ -443,7 +475,7 @@
         // Update page language
         function updateLanguage() {
             document.documentElement.lang = currentLang;
-            document.getElementById('game-title').textContent = 
+            document.getElementById('game-title').textContent =
                 gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
             document.getElementById('new-game-text').textContent = t.newGame;
             document.getElementById('home-text').textContent = t.home;
@@ -456,7 +488,7 @@
         function createBoard() {
             const board = document.getElementById('chessboard');
             board.innerHTML = '';
-            
+
             for (let row = 0; row < 8; row++) {
                 for (let col = 0; col < 8; col++) {
                     const square = document.createElement('div');
@@ -464,48 +496,57 @@
                     square.dataset.row = row;
                     square.dataset.col = col;
                     square.addEventListener('click', onSquareClick);
-                    
+
                     const piece = game.getPiece(row, col);
                     if (piece) {
                         square.textContent = pieceSymbols[piece] || piece;
                     }
-                    
+
                     board.appendChild(square);
                 }
             }
         }
 
+        // Enable or disable the chessboard (for multiplayer waiting state)
+        function setBoardEnabled(enabled) {
+            const squares = document.querySelectorAll('.chess-square');
+            squares.forEach(square => {
+                square.style.pointerEvents = enabled ? 'auto' : 'none';
+                square.style.opacity = enabled ? '1' : '0.5';
+            });
+        }
+
         // Handle square clicks
         function onSquareClick(event) {
             if (!gameStarted) return;
-            
+
             const row = parseInt(event.target.dataset.row);
             const col = parseInt(event.target.dataset.col);
-            
+
             // In multiplayer, check if it's our turn
             if (gameMode === 'multiplayer' && playerColor) {
                 const isWhiteTurn = game.turn === 'w';
                 const isMyTurn = (isWhiteTurn && playerColor === 'white') || (!isWhiteTurn && playerColor === 'black');
                 if (!isMyTurn) return;
             }
-            
+
             if (selectedSquare) {
                 // Try to make a move
                 const fromRow = selectedSquare.row;
                 const fromCol = selectedSquare.col;
-                
+
                 if (fromRow === row && fromCol === col) {
                     // Clicked same square - deselect
                     clearSelection();
                     return;
                 }
-                
+
                 const move = game.makeMove(fromRow, fromCol, row, col);
                 if (move) {
                     updateStatus(move);
                     updateBoard();
                     addToHistory(`${move.from}-${move.to}`);
-                    
+
                     // Send move in multiplayer
                     if (gameMode === 'multiplayer' && socket) {
                         socket.emit('make-move', {
@@ -520,10 +561,10 @@
                             fen: 'simple-chess-state'
                         });
                     }
-                    
+
                     updateStatus();
                 }
-                
+
                 clearSelection();
             } else {
                 // Select a piece
@@ -567,24 +608,31 @@
         function initMultiplayer() {
             document.getElementById('game-status').textContent = t.waitingForOpponent;
             document.getElementById('game-status').className = 'game-status status-waiting';
-            
-            // Connect to server
-            socket = io();
-            
+
+            // Connect to server with specific configuration
+            socket = io({
+                reconnectionAttempts: 3,
+                reconnectionDelay: 1000,
+                timeout: 5000
+            });
+
             // Socket event handlers
             socket.on('waiting-for-opponent', () => {
                 document.getElementById('game-status').textContent = t.waitingForOpponent;
                 document.getElementById('game-status').className = 'game-status status-waiting';
+                setBoardEnabled(false);
+                document.getElementById('player-info').style.display = 'none';
             });
 
             socket.on('game-start', (data) => {
                 gameStarted = true;
                 playerColor = data.players.find(p => p.id === socket.id).color;
-                
+
                 document.getElementById('player-info').style.display = 'flex';
                 document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
                 document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
-                
+
+                setBoardEnabled(true);
                 updateStatus();
             });
 
@@ -594,33 +642,33 @@
                 // Convert coordinates and validate
                 const fromPos = game.stringToPosition(moveData.from);
                 const toPos = game.stringToPosition(moveData.to);
-                
+
                 if (!fromPos || !toPos) return;
-                
+
                 // Validate that there is a piece at the from position
                 if (!game.getPiece(fromPos[0], fromPos[1])) return;
-                
+
                 const [fromRow, fromCol] = fromPos;
                 const [toRow, toCol] = toPos;
-                
+
                 // Make the move and get the result
                 const move = game.makeMove(fromRow, fromCol, toRow, toCol, moveData.promotedTo);
                 if (!move) return;
-                
+
                 // Synchronize game state with server
                 move.isCheck = moveData.isCheck;
                 move.isCheckmate = moveData.isCheckmate;
                 move.isStalemate = moveData.isStalemate;
                 move.isDraw = moveData.isDraw;
                 move.gameStatus = moveData.gameStatus;
-                
+
                 // Update the game state
                 game.check = moveData.isCheck;
                 game.gameStatus = moveData.isCheckmate ? 'checkmate' :
-                                moveData.isStalemate ? 'stalemate' :
-                                moveData.isDraw ? moveData.gameStatus :
-                                'active';
-                
+                    moveData.isStalemate ? 'stalemate' :
+                        moveData.isDraw ? moveData.gameStatus :
+                            'active';
+
                 // Update the UI
                 updateBoard();
                 addToHistory(`${moveData.from}-${moveData.to}`);
@@ -638,13 +686,33 @@
                 document.getElementById('game-status').className = 'game-status status-ended';
             });
 
+            let reconnectAttempts = 0;
+            const maxReconnectAttempts = 3;
+
             socket.on('connect_error', () => {
-                document.getElementById('game-status').textContent = t.connectionError;
+                reconnectAttempts++;
+                document.getElementById('game-status').textContent = reconnectAttempts < maxReconnectAttempts ?
+                    `${t.connectionError} Retrying... (${reconnectAttempts}/${maxReconnectAttempts})` :
+                    `${t.connectionError} Please refresh the page when the server is back online.`;
                 document.getElementById('game-status').className = 'game-status status-ended';
+
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    socket.close();
+                    gameStarted = false;
+                    document.getElementById('game-over-overlay').style.display = 'flex';
+                    document.getElementById('game-over-message').textContent = 'Server connection lost. Please refresh when the server is back online.';
+                }
             });
 
-            // Join the multiplayer lobby
-            socket.emit('join-lobby');
+            socket.on('connect', () => {
+                reconnectAttempts = 0;
+                // Only join lobby if not already in a game
+                if (!gameStarted) {
+                    socket.emit('join-lobby');
+                }
+            });
+
+            // Do not emit join-lobby here; it is handled in the 'connect' event
         }
 
         // Update game status
@@ -667,7 +735,7 @@
                     messageEl.textContent = status;
                     overlay.style.display = 'flex';
                 } else if (moveResult.isDraw) {
-                    status = moveResult.gameStatus === 'draw-repetition' ? 
+                    status = moveResult.gameStatus === 'draw-repetition' ?
                         t.drawRepetition : t.drawFifty;
                     statusClass = 'status-ended';
                     messageEl.textContent = status;
@@ -686,15 +754,15 @@
                     statusClass = 'status-check';
                 } else {
                     if (gameMode === 'multiplayer' && gameStarted && playerColor) {
-                        const isMyTurn = (game.turn === 'w' && playerColor === 'white') || 
-                                       (game.turn === 'b' && playerColor === 'black');
+                        const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
+                            (game.turn === 'b' && playerColor === 'black');
                         status = isMyTurn ? t.yourTurn : t.opponentTurn;
                     } else if (gameMode === 'single') {
                         status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
                     }
                 }
             }
-            
+
             // Update the status display
             const statusElement = document.getElementById('game-status');
             statusElement.textContent = status;
@@ -725,11 +793,26 @@
             document.getElementById('history-list').innerHTML = '';
             document.getElementById('game-over-overlay').style.display = 'none';
             createBoard();
-            
-            if (gameMode === 'multiplayer' && socket) {
-                socket.disconnect();
-                // Reconnect and rejoin lobby
-                socket = io();
+
+            if (gameMode === 'multiplayer') {
+                if (socket) {
+                    socket.emit('leave-game');  // Explicitly tell server we're leaving
+                    socket.disconnect();
+                    socket = null;
+                }
+                // Reset game state
+                gameStarted = false;
+                playerColor = null;
+                // Hide player info and disable board until game starts
+                document.getElementById('player-info').style.display = 'none';
+                setBoardEnabled(false);
+                // Create new socket connection
+                socket = io({
+                    reconnectionAttempts: 3,
+                    reconnectionDelay: 1000,
+                    timeout: 5000,
+                    forceNew: true  // Force a new connection
+                });
                 initMultiplayer();
             } else {
                 gameStarted = true;
@@ -740,7 +823,9 @@
         // Go to home page
         function goHome() {
             if (socket) {
+                socket.emit('leave-game');  // Explicitly tell server we're leaving
                 socket.disconnect();
+                socket = null;
             }
             window.location.href = `/?lang=${currentLang}`;
         }
@@ -748,7 +833,9 @@
         // Handle page unload
         window.addEventListener('beforeunload', () => {
             if (socket) {
+                socket.emit('leave-game');  // Explicitly tell server we're leaving
                 socket.disconnect();
+                socket = null;
             }
         });
 
@@ -756,4 +843,5 @@
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
+
 </html>

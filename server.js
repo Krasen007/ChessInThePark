@@ -34,6 +34,25 @@ function resetGame() {
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
+  // Clean up any stale connections
+  const staleConnections = gameState.players.filter(p => {
+    const clientSocket = io.sockets.sockets.get(p.id);
+    return !clientSocket || !clientSocket.connected;
+  });
+
+  if (staleConnections.length > 0) {
+    console.log('Cleaning up stale connections:', staleConnections.map(p => p.id));
+    gameState.players = gameState.players.filter(p => {
+      const clientSocket = io.sockets.sockets.get(p.id);
+      return clientSocket && clientSocket.connected;
+    });
+
+    if (gameState.players.length === 0) {
+      resetGame();
+      console.log('Game reset due to all stale connections');
+    }
+  }
+
   // Handle joining the multiplayer lobby
   socket.on('join-lobby', () => {
     // Check if lobby is full
@@ -61,7 +80,7 @@ io.on('connection', (socket) => {
       // Second player joined - start game
       gameState.gameStarted = true;
       gameState.currentGame = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Starting FEN
-      
+
       // Notify both players
       io.to('game-lobby').emit('game-start', {
         players: gameState.players,
@@ -73,7 +92,7 @@ io.on('connection', (socket) => {
     }
   });
 
-    // Handle chess moves
+  // Handle chess moves
   socket.on('make-move', (moveData) => {
     if (!gameState.gameStarted) {
       socket.emit('error', 'Game not started');
@@ -105,17 +124,17 @@ io.on('connection', (socket) => {
 
     // Validate move data before broadcasting
     const broadcastMove = {
-        from: moveData.from,
-        to: moveData.to,
-        piece: moveData.piece,
-        fen: moveData.fen,
-        currentPlayer: gameState.currentPlayer,
-        isCheck: Boolean(moveData.isCheck),
-        isCheckmate: Boolean(moveData.isCheckmate),
-        isStalemate: Boolean(moveData.isStalemate),
-        isDraw: Boolean(moveData.isDraw),
-        gameStatus: moveData.gameStatus || 'active',
-        promotedTo: moveData.promotedTo
+      from: moveData.from,
+      to: moveData.to,
+      piece: moveData.piece,
+      fen: moveData.fen,
+      currentPlayer: gameState.currentPlayer,
+      isCheck: Boolean(moveData.isCheck),
+      isCheckmate: Boolean(moveData.isCheckmate),
+      isStalemate: Boolean(moveData.isStalemate),
+      isDraw: Boolean(moveData.isDraw),
+      gameStatus: moveData.gameStatus || 'active',
+      promotedTo: moveData.promotedTo
     };
 
     // Broadcast move to ALL players in the lobby, including the sender
@@ -123,18 +142,18 @@ io.on('connection', (socket) => {
 
     // Handle game end conditions
     if (moveData.isCheckmate || moveData.isStalemate || moveData.isDraw) {
-        io.to('game-lobby').emit('game-over', {
-            type: moveData.isCheckmate ? 'checkmate' : 
-                  moveData.isStalemate ? 'stalemate' : 
-                  moveData.gameStatus,
-            winner: moveData.isCheckmate ? player.color : null
-        });
-        
-        // Reset the game state after a delay
-        setTimeout(() => {
-            resetGame();
-            io.to('game-lobby').emit('game-reset');
-        }, 5000);
+      io.to('game-lobby').emit('game-over', {
+        type: moveData.isCheckmate ? 'checkmate' :
+          moveData.isStalemate ? 'stalemate' :
+            moveData.gameStatus,
+        winner: moveData.isCheckmate ? player.color : null
+      });
+
+      // Reset the game state after a delay
+      setTimeout(() => {
+        resetGame();
+        io.to('game-lobby').emit('game-reset');
+      }, 5000);
     }
 
     console.log(`Move made: ${moveData.from} to ${moveData.to}`);
@@ -145,7 +164,7 @@ io.on('connection', (socket) => {
     if (gameState.gameStarted) {
       io.to('game-lobby').emit('game-ended', result);
       console.log('Game ended:', result);
-      
+
       // Reset after a delay
       setTimeout(() => {
         resetGame();
@@ -154,31 +173,46 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle player explicitly leaving the game
+  socket.on('leave-game', () => {
+    handlePlayerLeaving(socket);
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
-
-    // Remove player from game
-    const playerIndex = gameState.players.findIndex(p => p.id === socket.id);
-    if (playerIndex !== -1) {
-      const disconnectedPlayer = gameState.players[playerIndex];
-      gameState.players.splice(playerIndex, 1);
-
-      console.log(`Player ${disconnectedPlayer.color} disconnected`);
-
-      if (gameState.gameStarted) {
-        // Notify remaining player that opponent left
-        socket.to('game-lobby').emit('opponent-left');
-      }
-
-      // Reset game if no players left or game was in progress
-      if (gameState.players.length === 0 || gameState.gameStarted) {
-        resetGame();
-        console.log('Game reset due to disconnection');
-      }
-    }
+    handlePlayerLeaving(socket);
   });
 });
+
+// Function to handle player leaving (either through disconnect or explicit leave)
+function handlePlayerLeaving(socket) {
+  // First, remove any disconnected sockets from players array
+  gameState.players = gameState.players.filter(p => {
+    const clientSocket = io.sockets.sockets.get(p.id);
+    if (p.id === socket.id || !clientSocket || !clientSocket.connected) {
+      console.log(`Removing player ${p.id} (${p.color})`);
+      return false;
+    }
+    return true;
+  });
+
+  console.log(`Players remaining after cleanup: ${gameState.players.length}`);
+
+  // Notify remaining players if game was in progress
+  if (gameState.gameStarted) {
+    io.to('game-lobby').emit('opponent-left');
+    gameState.gameStarted = false;
+  }
+
+  // Only fully reset if no players left
+  if (gameState.players.length === 0) {
+    resetGame();
+    console.log('Game fully reset - no players remaining');
+  }
+
+  socket.leave('game-lobby');
+}
 
 // Routes
 app.get('/', (req, res) => {

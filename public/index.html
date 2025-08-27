@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Game</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div class="container">
         <header class="header">
             <h1 id="main-title">Chess Game</h1>
-            
+
             <!-- Language Selection -->
             <div class="language-selector">
                 <button id="lang-en" class="lang-btn active">English</button>
@@ -21,14 +23,14 @@
         <main class="main-content">
             <div class="game-mode-selection">
                 <h2 id="choose-mode-text">Choose Game Mode</h2>
-                
+
                 <div class="mode-buttons">
                     <button id="single-player-btn" class="mode-btn">
                         <div class="btn-icon">♟️</div>
                         <div class="btn-text">Single Player</div>
                         <div class="btn-desc">Play against yourself</div>
                     </button>
-                    
+
                     <button id="multiplayer-btn" class="mode-btn">
                         <div class="btn-icon">⚔️</div>
                         <div class="btn-text">Multiplayer</div>
@@ -74,25 +76,25 @@
         function updateLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
-            
+
             // Update text content
             document.getElementById('main-title').textContent = t.title;
             document.getElementById('choose-mode-text').textContent = t.chooseMode;
             document.getElementById('footer-text').textContent = t.footerText;
-            
+
             // Update button texts
             const singlePlayerBtn = document.getElementById('single-player-btn');
             singlePlayerBtn.querySelector('.btn-text').textContent = t.singlePlayer;
             singlePlayerBtn.querySelector('.btn-desc').textContent = t.singlePlayerDesc;
-            
+
             const multiplayerBtn = document.getElementById('multiplayer-btn');
             multiplayerBtn.querySelector('.btn-text').textContent = t.multiplayer;
             multiplayerBtn.querySelector('.btn-desc').textContent = t.multiplayerDesc;
-            
+
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`lang-${lang}`).classList.add('active');
-            
+
             // Update page lang attribute
             document.documentElement.lang = lang;
         }
@@ -127,4 +129,5 @@
         updateLanguage(currentLang);
     </script>
 </body>
+
 </html>
