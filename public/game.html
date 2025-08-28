@@ -34,9 +34,7 @@
         </div>
 
         <div class="game-controls">
-            <button class="control-btn" id="new-game-btn" onclick="startNewGame()">
-                <span id="new-game-text">New Game</span>
-            </button>
+
             <button class="control-btn" id="home-btn" onclick="goHome()">
                 <span id="home-text">Home</span>
             </button>
@@ -366,26 +364,26 @@
         let selectedSquare = null;
 
         // Initialize the application
-        function init() {
-            updateLanguage();
-            createBoard();
+function init() {
+    updateLanguage();
+    createBoard();
 
-            // Hide player info and disable board for multiplayer until game starts
-            if (gameMode === 'multiplayer') {
-                document.getElementById('player-info').style.display = 'none';
-                setBoardEnabled(false);
-                initMultiplayer();
-            } else {
-                initSinglePlayer();
-            }
-        }
+    // Initialize game mode specific functionality
+    if (gameMode === 'multiplayer') {
+        document.getElementById('player-info').style.display = 'none';
+        setBoardEnabled(false);
+        initMultiplayer();
+    } else {
+        initSinglePlayer();
+    }
+}
 
         // Update page language
         function updateLanguage() {
             document.documentElement.lang = currentLang;
             document.getElementById('game-title').textContent =
                 gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
-            document.getElementById('new-game-text').textContent = t.newGame;
+
             document.getElementById('home-text').textContent = t.home;
             document.getElementById('white-label').textContent = t.white;
             document.getElementById('black-label').textContent = t.black;
