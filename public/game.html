@@ -364,26 +364,25 @@
         let selectedSquare = null;
 
         // Initialize the application
-function init() {
-    updateLanguage();
-    createBoard();
+        function init() {
+            updateLanguage();
+            createBoard();
 
-    // Initialize game mode specific functionality
-    if (gameMode === 'multiplayer') {
-        document.getElementById('player-info').style.display = 'none';
-        setBoardEnabled(false);
-        initMultiplayer();
-    } else {
-        initSinglePlayer();
-    }
-}
+            // Initialize game mode specific functionality
+            if (gameMode === 'multiplayer') {
+                document.getElementById('player-info').style.display = 'none';
+                setBoardEnabled(false);
+                initMultiplayer();
+            } else {
+                initSinglePlayer();
+            }
+        }
 
         // Update page language
         function updateLanguage() {
             document.documentElement.lang = currentLang;
             document.getElementById('game-title').textContent =
                 gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
-
             document.getElementById('home-text').textContent = t.home;
             document.getElementById('white-label').textContent = t.white;
             document.getElementById('black-label').textContent = t.black;
@@ -682,25 +681,25 @@ function init() {
         }
 
         // Add move to history
-function addToHistory(move) {
-    const historyList = document.getElementById('history-list');
-    const moveNumber = Math.ceil(game.history.length / 2);
-    const isWhiteMove = game.turn === 'b';
+        function addToHistory(move) {
+            const historyList = document.getElementById('history-list');
+            const moveNumber = Math.ceil(game.history.length / 2);
+            const isWhiteMove = game.turn === 'b';
 
-    if (isWhiteMove) {
-        const moveElement = document.createElement('div');
-        moveElement.textContent = `${moveNumber}. ${move}`;
-        moveElement.style.padding = '2px 5px';
-        moveElement.style.borderBottom = '1px solid #eee';
-        historyList.appendChild(moveElement);
-    } else {
-        const lastMoveElement = historyList.lastElementChild;
-        if (lastMoveElement) {
-            lastMoveElement.textContent += ` ${move}`;
+            if (isWhiteMove) {
+                const moveElement = document.createElement('div');
+                moveElement.textContent = `${moveNumber}. ${move}`;
+                moveElement.style.padding = '2px 5px';
+                moveElement.style.borderBottom = '1px solid #eee';
+                historyList.appendChild(moveElement);
+            } else {
+                const lastMoveElement = historyList.lastElementChild;
+                if (lastMoveElement) {
+                    lastMoveElement.textContent += ` ${move}`;
+                }
+            }
+            historyList.scrollTop = historyList.scrollHeight;
         }
-    }
-    historyList.scrollTop = historyList.scrollHeight;
-}
 
         // Start new game
         function startNewGame() {

@@ -7,17 +7,17 @@ class ChessRules {
         const deltaCol = toCol - fromCol;
         const absDeltaRow = Math.abs(deltaRow);
         const absDeltaCol = Math.abs(deltaCol);
-        
+
         // Check castling
         if (pieceType === 'k' && absDeltaCol === 2 && deltaRow === 0) {
             if (!canCastle) return false;
             const castlingSide = deltaCol > 0 ? 'kingside' : 'queenside';
             const row = isWhite ? 7 : 0;
-            
+
             if (!ChessRules.canCastle(isWhite, castlingSide, board, canCastle)) {
                 return false;
             }
-            
+
             // Check if king passes through check
             const intermediateCol = fromCol + (deltaCol > 0 ? 1 : -1);
             const tempBoard = board.map(row => [...row]);
@@ -26,19 +26,19 @@ class ChessRules {
             if (ChessRules.isInCheck(tempBoard, isWhite)) {
                 return false;
             }
-            
+
             return true;
         }
 
         // Basic validation for all pieces
         if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
-        
+
         const targetPiece = board[toRow][toCol];
         if (targetPiece && (isWhite === (targetPiece === targetPiece.toUpperCase()))) {
             return false; // Can't capture own piece
         }
 
-        switch(pieceType) {
+        switch (pieceType) {
             case 'p': // Pawn
                 if (isWhite) {
                     // White pawns move up (negative row direction)
@@ -80,20 +80,20 @@ class ChessRules {
                 return false;
 
             case 'r': // Rook
-                return (deltaRow === 0 || deltaCol === 0) && 
-                       ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
+                return (deltaRow === 0 || deltaCol === 0) &&
+                    ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
 
             case 'n': // Knight
-                return (absDeltaRow === 2 && absDeltaCol === 1) || 
-                       (absDeltaRow === 1 && absDeltaCol === 2);
+                return (absDeltaRow === 2 && absDeltaCol === 1) ||
+                    (absDeltaRow === 1 && absDeltaCol === 2);
 
             case 'b': // Bishop
-                return absDeltaRow === absDeltaCol && 
-                       ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
+                return absDeltaRow === absDeltaCol &&
+                    ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
 
             case 'q': // Queen
-                return (deltaRow === 0 || deltaCol === 0 || absDeltaRow === absDeltaCol) && 
-                       ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
+                return (deltaRow === 0 || deltaCol === 0 || absDeltaRow === absDeltaCol) &&
+                    ChessRules.isPathClear(fromRow, fromCol, toRow, toCol, board);
 
             case 'k': // King
                 return absDeltaRow <= 1 && absDeltaCol <= 1;
@@ -104,10 +104,10 @@ class ChessRules {
     static isPathClear(fromRow, fromCol, toRow, toCol, board) {
         const rowStep = fromRow === toRow ? 0 : (toRow - fromRow) / Math.abs(toRow - fromRow);
         const colStep = fromCol === toCol ? 0 : (toCol - fromCol) / Math.abs(toCol - fromCol);
-        
+
         let currentRow = fromRow + rowStep;
         let currentCol = fromCol + colStep;
-        
+
         while (currentRow !== toRow || currentCol !== toCol) {
             if (board[currentRow][currentCol]) return false;
             currentRow += rowStep;
@@ -120,7 +120,7 @@ class ChessRules {
         // Find the king
         let kingRow, kingCol;
         const kingPiece = isWhiteKing ? 'K' : 'k';
-        
+
         for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 if (board[row][col] === kingPiece) {
@@ -137,7 +137,7 @@ class ChessRules {
             for (let col = 0; col < 8; col++) {
                 const piece = board[row][col];
                 if (!piece || (isWhiteKing === (piece === piece.toUpperCase()))) continue;
-                
+
                 if (ChessRules.isValidMove(piece, row, col, kingRow, kingCol, board)) {
                     return true;
                 }
@@ -150,26 +150,26 @@ class ChessRules {
         const row = isWhite ? 7 : 0;
         const king = isWhite ? 'K' : 'k';
         const rook = isWhite ? 'R' : 'r';
-        
+
         // Check if the king and rook are in their original positions
         if (board[row][4] !== king) return false;
-        
+
         if (side === 'kingside') {
             if (!castlingRights[isWhite ? 'K' : 'k']) return false;
             if (board[row][7] !== rook) return false;
             // Check if squares between king and rook are empty
             return !board[row][5] && !board[row][6] &&
-                   !ChessRules.isInCheck(board, isWhite) &&
-                   !ChessRules.isSquareAttacked(row, 5, board, isWhite) &&
-                   !ChessRules.isSquareAttacked(row, 6, board, isWhite);
+                !ChessRules.isInCheck(board, isWhite) &&
+                !ChessRules.isSquareAttacked(row, 5, board, isWhite) &&
+                !ChessRules.isSquareAttacked(row, 6, board, isWhite);
         } else {
             if (!castlingRights[isWhite ? 'Q' : 'q']) return false;
             if (board[row][0] !== rook) return false;
             // Check if squares between king and rook are empty
             return !board[row][1] && !board[row][2] && !board[row][3] &&
-                   !ChessRules.isInCheck(board, isWhite) &&
-                   !ChessRules.isSquareAttacked(row, 2, board, isWhite) &&
-                   !ChessRules.isSquareAttacked(row, 3, board, isWhite);
+                !ChessRules.isInCheck(board, isWhite) &&
+                !ChessRules.isSquareAttacked(row, 2, board, isWhite) &&
+                !ChessRules.isSquareAttacked(row, 3, board, isWhite);
         }
     }
 

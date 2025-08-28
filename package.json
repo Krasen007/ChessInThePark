@@ -20,6 +20,6 @@
     "websocket",
     "nodejs"
   ],
-  "author": "",
-  "license": "MIT"
+  "author": "Krasen Ivanov",
+  "license": "GPL-3.0-only"
 }
