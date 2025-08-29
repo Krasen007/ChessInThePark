@@ -124,7 +124,7 @@
                     return false;
                 }
 
-                const piece = this.getPiece(fromRow, fromCol);
+                let piece = this.getPiece(fromRow, fromCol);
                 if (!piece) {
                     return false;
                 }
@@ -148,12 +148,47 @@
                 if (pieceType === 'k' && Math.abs(toCol - fromCol) === 2) {
                     const row = isWhite ? 7 : 0;
                     const isKingside = toCol > fromCol;
+                    
+                    // First check if castling is allowed
+                    const castlingSide = isKingside ? 'kingside' : 'queenside';
+                    if (!ChessRules.canCastle(isWhite, castlingSide, this.board, this.castlingRights)) {
+                        return false;
+                    }
+
                     const rookFromCol = isKingside ? 7 : 0;
                     const rookToCol = isKingside ? 5 : 3;
+                    const rook = isWhite ? 'R' : 'r';
 
-                    // Move rook
-                    this.setPiece(row, rookToCol, isWhite ? 'R' : 'r');
+                    // Move both the king and rook
+                    this.setPiece(toRow, toCol, piece);
+                    this.setPiece(fromRow, fromCol, null);
+                    this.setPiece(row, rookToCol, rook);
                     this.setPiece(row, rookFromCol, null);
+                    
+                    // Update castling rights
+                    if (isWhite) {
+                        this.castlingRights.K = false;
+                        this.castlingRights.Q = false;
+                    } else {
+                        this.castlingRights.k = false;
+                        this.castlingRights.q = false;
+                    }
+                    
+                    // Switch turns for castling
+                    this.turn = this.turn === 'w' ? 'b' : 'w';
+
+                    const move = {
+                        from: this.positionToString(fromRow, fromCol),
+                        to: this.positionToString(toRow, toCol),
+                        piece: piece,
+                        isCheck: false,
+                        isCheckmate: false,
+                        isStalemate: false,
+                        isDraw: false
+                    };
+
+                    this.history.push(move);
+                    return move;
                 }
 
                 // Handle en passant capture
@@ -168,14 +203,36 @@
 
                 // Handle pawn promotion
                 if (pieceType === 'p' && (toRow === 0 || toRow === 7)) {
-                    if (promotionPiece) {
-                        const promotedPiece = isWhite ? promotionPiece.toUpperCase() : promotionPiece.toLowerCase();
-                        this.setPiece(toRow, toCol, promotedPiece);
-                        this.pendingPromotion = null;
-                    } else {
-                        this.pendingPromotion = { row: toRow, col: toCol, isWhite };
-                        return { needsPromotion: true };
-                    }
+                    // Make the initial pawn move
+                    this.setPiece(toRow, toCol, piece);
+                    this.setPiece(fromRow, fromCol, null);
+                    
+                    // Automatically promote to queen
+                    const promotedPiece = isWhite ? 'Q' : 'q';
+                    this.setPiece(toRow, toCol, promotedPiece);
+                    piece = promotedPiece;  // Update piece for move history
+                    
+                    // Update game state
+                    this.lastMove = [fromRow, fromCol, toRow, toCol];
+                    const position = this.getBoardFEN();
+                    this.positions.set(position, (this.positions.get(position) || 0) + 1);
+                    
+                    // Switch turns
+                    this.turn = this.turn === 'w' ? 'b' : 'w';
+                    
+                    // Create and return the move object
+                    const move = {
+                        from: this.positionToString(fromRow, fromCol),
+                        to: this.positionToString(toRow, toCol),
+                        piece: piece,
+                        isCheck: this.check,
+                        isCheckmate: this.gameStatus === 'checkmate',
+                        isStalemate: this.gameStatus === 'stalemate',
+                        isDraw: this.gameStatus.startsWith('draw-'),
+                        promotedTo: promotedPiece
+                    };
+                    this.history.push(move);
+                    return move;
                 }
 
                 // Update castling rights
