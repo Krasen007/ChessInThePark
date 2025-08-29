@@ -403,7 +403,8 @@
                 black: 'Черни',
                 historyTitle: 'История на ходовете',
                 lobbyFull: 'Лобито е пълно. Моля, опитайте отново по-късно.',
-                connectionError: 'Грешка във връзката. Моля, обновете страницата.'
+                connectionError: 'Грешка във връзката. Моля, обновете страницата.',
+                check: 'Шах!'
             }
         };
 
@@ -630,7 +631,7 @@
                 document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
                 document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
 
-                setBoardEnabled(true);
+                setBoardEnabled(true);                
                 updateStatus();
             });
 
@@ -755,7 +756,9 @@
                     messageEl.textContent = status;
                     overlay.style.display = 'flex';
                 } else if (moveResult.isCheck) {
-                    status = t.check;
+                    // Determine which color is in check
+                    const colorInCheck = game.turn === 'w' ? 'black' : 'white';
+                    status = `${t.check} (${colorInCheck} called)`;
                     statusClass = 'status-check';
                 }
             }
@@ -764,7 +767,9 @@
             if (!status) {
                 // Check if the current player is in check
                 if (game.check) {
-                    status = t.check;
+                    // Determine which color is in check
+                    const colorInCheck = game.turn === 'w' ? 'black' : 'white';
+                    status = `${t.check} (${colorInCheck} called)`;
                     statusClass = 'status-check';
                 } else {
                     if (gameMode === 'multiplayer' && gameStarted && playerColor) {
