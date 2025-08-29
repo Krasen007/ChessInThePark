@@ -223,6 +223,16 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'game.html'));
 });
 
+// Return app version from package.json
+app.get('/version', (req, res) => {
+  try {
+    const pkg = require(path.join(__dirname, 'package.json'));
+    res.json({ version: pkg.version });
+  } catch (err) {
+    res.status(500).json({ error: 'Unable to read version' });
+  }
+});
+
 // Start server
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

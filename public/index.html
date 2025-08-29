@@ -42,6 +42,10 @@
 
         <footer class="footer">
             <p id="footer-text">Click on a game mode to start playing</p>
+            <!-- App Version -->
+            <div id="app-version" style="text-align:center; color:#888; font-size:0.9em; margin-top:20px;">
+                Version: ...
+            </div>
         </footer>
     </div>
 
@@ -127,7 +131,22 @@
 
         // Initialize with current language
         updateLanguage(currentLang);
+        // Fetch app version from server and update footer
+        fetch('/version')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.version) {
+                    const vEl = document.getElementById('app-version');
+                    if (vEl) vEl.textContent = `Version: ${data.version}`;
+                }
+            })
+            .catch(() => {
+                const vEl = document.getElementById('app-version');
+                if (vEl) vEl.textContent = 'Version: unknown';
+            });
     </script>
+
+
 </body>
 
 </html>
