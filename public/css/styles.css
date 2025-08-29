@@ -271,6 +271,25 @@ body {
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
     margin: 0 auto;
+    transform: rotate(0deg);
+    transition: transform 0.5s ease;
+}
+
+.simple-chessboard.rotated {
+    transform: rotate(180deg);
+}
+
+.chess-square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.chess-square.rotated {
+    transform: rotate(180deg);
 }
 
 .chess-square {

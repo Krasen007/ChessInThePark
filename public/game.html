@@ -451,12 +451,32 @@
             const board = document.getElementById('chessboard');
             board.innerHTML = '';
 
+            // Check if we need to rotate the board (for black player in multiplayer)
+            const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
+            
+            // Add rotated class to board if needed
+            if (shouldRotate) {
+                board.classList.add('rotated');
+            } else {
+                board.classList.remove('rotated');
+            }
+
             for (let row = 0; row < 8; row++) {
                 for (let col = 0; col < 8; col++) {
                     const square = document.createElement('div');
                     square.className = `chess-square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
-                    square.dataset.row = row;
-                    square.dataset.col = col;
+                    
+                    // Add rotated class to squares if needed
+                    if (shouldRotate) {
+                        square.classList.add('rotated');
+                    }
+                    
+                    // For rotated board, we need to adjust the coordinates
+                    const displayRow = shouldRotate ? 7 - row : row;
+                    const displayCol = shouldRotate ? 7 - col : col;
+                    
+                    square.dataset.row = displayRow;
+                    square.dataset.col = displayCol;
                     square.addEventListener('click', onSquareClick);
 
                     const piece = game.getPiece(row, col);
@@ -482,8 +502,14 @@
         function onSquareClick(event) {
             if (!gameStarted) return;
 
-            const row = parseInt(event.target.dataset.row);
-            const col = parseInt(event.target.dataset.col);
+            // Get the actual board coordinates considering rotation
+            const displayRow = parseInt(event.target.dataset.row);
+            const displayCol = parseInt(event.target.dataset.col);
+            
+            // Transform coordinates back to game logic coordinates if board is rotated
+            const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
+            const row = shouldRotate ? 7 - displayRow : displayRow;
+            const col = shouldRotate ? 7 - displayCol : displayCol;
 
             // In multiplayer, check if it's our turn
             if (gameMode === 'multiplayer' && playerColor) {
@@ -548,11 +574,21 @@
 
         // Update board display
         function updateBoard() {
+            const boardElement = document.getElementById('chessboard');
+            const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
+            
             const squares = document.querySelectorAll('.chess-square');
             squares.forEach((square, index) => {
                 const row = Math.floor(index / 8);
                 const col = index % 8;
-                const piece = game.getPiece(row, col);
+                
+                // For rotated board, we need to adjust the coordinates when getting pieces
+                // The game board array is never rotated, so we need to transform the coordinates
+                // to get the correct piece for display
+                const gameRow = shouldRotate ? 7 - row : row;
+                const gameCol = shouldRotate ? 7 - col : col;
+                
+                const piece = game.getPiece(gameRow, gameCol);
                 square.textContent = piece ? (pieceSymbols[piece] || piece) : '';
             });
         }
@@ -607,14 +643,30 @@
 
                 if (!fromPos || !toPos) return;
 
-                // Validate that there is a piece at the from position
-                if (!game.getPiece(fromPos[0], fromPos[1])) return;
+                // Transform coordinates for rotated board if needed
+                const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
+                let [fromRow, fromCol] = fromPos;
+                let [toRow, toCol] = toPos;
+                
+                if (shouldRotate) {
+                    fromRow = 7 - fromRow;
+                    fromCol = 7 - fromCol;
+                    toRow = 7 - toRow;
+                    toCol = 7 - toCol;
+                }
 
-                const [fromRow, fromCol] = fromPos;
-                const [toRow, toCol] = toPos;
+                // Validate that there is a piece at the from position
+                // We need to transform back to game coordinates for validation
+                const gameFromRow = shouldRotate ? 7 - fromRow : fromRow;
+                const gameFromCol = shouldRotate ? 7 - fromCol : fromCol;
+                if (!game.getPiece(gameFromRow, gameFromCol)) return;
 
                 // Make the move and get the result
-                const move = game.makeMove(fromRow, fromCol, toRow, toCol, moveData.promotedTo);
+                // Transform back to game coordinates for the move
+                const gameFromPos = shouldRotate ? [7 - fromRow, 7 - fromCol] : [fromRow, fromCol];
+                const gameToPos = shouldRotate ? [7 - toRow, 7 - toCol] : [toRow, toCol];
+                
+                const move = game.makeMove(gameFromPos[0], gameFromPos[1], gameToPos[0], gameToPos[1], moveData.promotedTo);
                 if (!move) return;
 
                 // Synchronize game state with server
