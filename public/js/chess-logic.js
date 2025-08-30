@@ -1,6 +1,6 @@
 // Chess piece movement rules and validation
 class ChessRules {
-    static isValidMove(piece, fromRow, fromCol, toRow, toCol, board, lastMove = null, canCastle = null) {
+    static isValidMove(piece, fromRow, fromCol, toRow, toCol, board, lastMove = null, castlingRights = null) {
         const pieceType = piece.toLowerCase();
         const isWhite = piece === piece.toUpperCase();
         const deltaRow = toRow - fromRow;
@@ -10,11 +10,11 @@ class ChessRules {
 
         // Check castling
         if (pieceType === 'k' && absDeltaCol === 2 && deltaRow === 0) {
-            if (!canCastle) return false;
+            if (!castlingRights) return false;
             const castlingSide = deltaCol > 0 ? 'kingside' : 'queenside';
             const row = isWhite ? 7 : 0;
 
-            if (!ChessRules.canCastle(isWhite, castlingSide, board, canCastle)) {
+            if (!ChessRules.canCastle(isWhite, castlingSide, board, castlingRights)) {
                 return false;
             }
 

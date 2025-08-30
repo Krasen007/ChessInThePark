@@ -50,6 +50,12 @@ const translations = {
     }
 };
 
+// Piece symbols for display
+const pieceSymbols = {
+    'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+    'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+};
+
 // Get URL parameters
 const urlParams = new URLSearchParams(window.location.search);
 const gameMode = urlParams.get('mode') || 'single';
@@ -125,6 +131,8 @@ function createBoard() {
             const piece = game.getPiece(row, col);
             if (piece) {
                 square.textContent = pieceSymbols[piece] || piece;
+            } else {
+                square.textContent = '';
             }
 
             board.appendChild(square);
@@ -174,7 +182,6 @@ function onSquareClick(event) {
 
         const move = game.makeMove(fromRow, fromCol, row, col);
         if (move) {
-            updateStatus(move);
             updateBoard();
             addToHistory(`${move.from}-${move.to}`);
 
@@ -189,11 +196,13 @@ function onSquareClick(event) {
                     isStalemate: game.gameStatus === 'stalemate',
                     isDraw: game.gameStatus.startsWith('draw-'),
                     gameStatus: game.gameStatus,
-                    fen: 'simple-chess-state'
+                    fen: game.getBoardFEN(),
+                    promotedTo: move.promotedTo
                 });
+            } else {
+                // Only update status in single player mode or if not in multiplayer
+                updateStatus(move);
             }
-
-            updateStatus();
         }
 
         clearSelection();
@@ -232,7 +241,11 @@ function updateBoard() {
         const gameCol = shouldRotate ? 7 - col : col;
 
         const piece = game.getPiece(gameRow, gameCol);
-        square.textContent = piece ? (pieceSymbols[piece] || piece) : '';
+        if (piece) {
+            square.textContent = pieceSymbols[piece] || piece;
+        } else {
+            square.textContent = '';
+        }
     });
 }
 
@@ -380,47 +393,40 @@ function updateStatus(moveResult) {
     const messageEl = document.getElementById('game-over-message');
 
     // Handle game end conditions first
-    if (moveResult) {
-        if (moveResult.isCheckmate) {
-            status = game.turn === 'b' ? t.whiteWins : t.blackWins;
-            statusClass = 'status-ended';
-            messageEl.textContent = status;
-            overlay.style.display = 'flex';
-        } else if (moveResult.isStalemate) {
-            status = t.stalemate;
-            statusClass = 'status-ended';
-            messageEl.textContent = status;
-            overlay.style.display = 'flex';
-        } else if (moveResult.isDraw) {
-            status = moveResult.gameStatus === 'draw-repetition' ?
-                t.drawRepetition : t.drawFifty;
-            statusClass = 'status-ended';
-            messageEl.textContent = status;
-            overlay.style.display = 'flex';
-        } else if (moveResult.isCheck) {
-            // Determine which color is in check
-            const colorInCheck = game.turn === 'w' ? 'black' : 'white';
-            status = `${t.check} (${colorInCheck} called)`;
-            statusClass = 'status-check';
-        }
-    }
-
-    // If game is still active, show regular turn status
-    if (!status) {
-        // Check if the current player is in check
-        if (game.check) {
-            // Determine which color is in check
-            const colorInCheck = game.turn === 'w' ? 'black' : 'white';
-            status = `${t.check} (${colorInCheck} called)`;
-            statusClass = 'status-check';
-        } else {
-            if (gameMode === 'multiplayer' && gameStarted && playerColor) {
-                const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
-                    (game.turn === 'b' && playerColor === 'black');
-                status = isMyTurn ? t.yourTurn : t.opponentTurn;
-            } else if (gameMode === 'single') {
-                status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
-            }
+    if (moveResult && moveResult.isCheckmate) {
+        status = game.turn === 'b' ? t.whiteWins : t.blackWins;
+        statusClass = 'status-ended';
+        messageEl.textContent = status;
+        overlay.style.display = 'flex';
+    } else if (moveResult && moveResult.isStalemate) {
+        status = t.stalemate;
+        statusClass = 'status-ended';
+        messageEl.textContent = status;
+        overlay.style.display = 'flex';
+    } else if (moveResult && moveResult.isDraw) {
+        status = moveResult.gameStatus === 'draw-repetition' ?
+            t.drawRepetition : t.drawFifty;
+        statusClass = 'status-ended';
+        messageEl.textContent = status;
+        overlay.style.display = 'flex';
+    } else if (moveResult && moveResult.isCheck) {
+        // Determine which color is in check
+        const colorInCheck = game.turn === 'w' ? 'black' : 'white';
+        status = `${t.check} (${colorInCheck} called)`;
+        statusClass = 'status-check';
+    } else if (game.check) {
+        // Check if the current player is in check (ongoing status)
+        const colorInCheck = game.turn === 'w' ? 'black' : 'white';
+        status = `${t.check} (${colorInCheck} called)`;
+        statusClass = 'status-check';
+    } else {
+        // Regular turn status
+        if (gameMode === 'multiplayer' && gameStarted && playerColor) {
+            const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
+                (game.turn === 'b' && playerColor === 'black');
+            status = isMyTurn ? t.yourTurn : t.opponentTurn;
+        } else if (gameMode === 'single') {
+            status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
         }
     }
 
@@ -435,6 +441,7 @@ function updateStatus(moveResult) {
         document.getElementById('black-player').classList.toggle('active', game.turn === 'b');
     }
 }
+
 
 // Add move to history
 function addToHistory(move) {

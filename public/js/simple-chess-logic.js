@@ -11,7 +11,6 @@ class SimpleChess {
         this.castlingRights = { K: true, Q: true, k: true, q: true };
         this.halfMoveClock = 0;
         this.positions = new Map(); // For threefold repetition
-        this.pendingPromotion = null;
     }
 
     getStartingPosition() {
@@ -65,10 +64,6 @@ class SimpleChess {
     }
 
     makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
-        if (this.pendingPromotion && !promotionPiece) {
-            return false;
-        }
-
         let piece = this.getPiece(fromRow, fromCol);
         if (!piece) {
             return false;
@@ -252,6 +247,7 @@ class SimpleChess {
     }
 
     getBoardFEN() {
+        // Generate board position part of FEN
         let fen = '';
         for (let row = 0; row < 8; row++) {
             let emptyCount = 0;
@@ -272,6 +268,37 @@ class SimpleChess {
             }
             if (row < 7) fen += '/';
         }
+        
+        // Add turn indicator
+        fen += ' ' + this.turn;
+        
+        // Add castling rights
+        let castling = '';
+        if (this.castlingRights.K) castling += 'K';
+        if (this.castlingRights.Q) castling += 'Q';
+        if (this.castlingRights.k) castling += 'k';
+        if (this.castlingRights.q) castling += 'q';
+        fen += ' ' + (castling || '-');
+        
+        // Add en passant square (simplified - using last move)
+        let enPassant = '-';
+        if (this.lastMove) {
+            const [fromRow, fromCol, toRow, toCol] = this.lastMove;
+            // Check if it was a pawn moving two squares
+            if (Math.abs(toRow - fromRow) === 2 && 
+                (this.board[toRow][toCol] === 'P' || this.board[toRow][toCol] === 'p')) {
+                // En passant square is the square the pawn passed over
+                const enPassantRow = fromRow === 1 ? 2 : (fromRow === 6 ? 5 : -1);
+                if (enPassantRow !== -1) {
+                    enPassant = String.fromCharCode(97 + fromCol) + (8 - enPassantRow);
+                }
+            }
+        }
+        fen += ' ' + enPassant;
+        
+        // Add halfmove clock and fullmove number (simplified)
+        fen += ' ' + this.halfMoveClock + ' ' + Math.ceil(this.history.length / 2 + 1);
+        
         return fen;
     }
 
@@ -290,12 +317,5 @@ class SimpleChess {
         this.castlingRights = { K: true, Q: true, k: true, q: true };
         this.halfMoveClock = 0;
         this.positions = new Map();
-        this.pendingPromotion = null;
     }
 }
-
-// Piece symbols
-const pieceSymbols = {
-    'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
-    'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
-};
