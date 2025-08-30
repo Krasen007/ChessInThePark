@@ -1,6 +1,6 @@
 {
   "name": "multiplayer-chess",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Simple multiplayer chess application with single lobby",
   "main": "server.js",
   "scripts": {

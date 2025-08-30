@@ -199,9 +199,11 @@ function onSquareClick(event) {
                     fen: game.getBoardFEN(),
                     promotedTo: move.promotedTo
                 });
+                // Update status locally after sending the move
+                updateStatus(move);
             } else {
                 // Only update status in single player mode or if not in multiplayer
-                updateStatus(move);
+                updateStatus();
             }
         }
 
@@ -251,7 +253,7 @@ function updateBoard() {
 
 // Initialize single player mode
 function initSinglePlayer() {
-    document.getElementById('game-status').textContent = t.whitesTurn;
+    document.getElementById('game-status').textContent = t.yourTurn;
     document.getElementById('game-status').className = 'game-status status-playing';
     document.getElementById('player-info').style.display = 'flex';
     gameStarted = true;
@@ -426,7 +428,10 @@ function updateStatus(moveResult) {
                 (game.turn === 'b' && playerColor === 'black');
             status = isMyTurn ? t.yourTurn : t.opponentTurn;
         } else if (gameMode === 'single') {
-            status = game.turn === 'w' ? t.whitesTurn : t.blacksTurn;
+            status = t.yourTurn;
+        } else if (gameMode === 'multiplayer') {
+            // Fallback for multiplayer when playerColor not set
+            status = t.opponentTurn;
         }
     }
 
