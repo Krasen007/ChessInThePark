@@ -12,25 +12,20 @@
     <div class="container">
         <header class="header">
             <h1 id="main-title">Chess Game</h1>
-
-            <!-- Language Selection -->
             <div class="language-selector">
                 <button id="lang-en" class="lang-btn active">English</button>
                 <button id="lang-bg" class="lang-btn">Български</button>
             </div>
         </header>
-
         <main class="main-content">
             <div class="game-mode-selection">
                 <h2 id="choose-mode-text">Choose Game Mode</h2>
-
                 <div class="mode-buttons">
                     <button id="single-player-btn" class="mode-btn">
                         <div class="btn-icon">♟️</div>
                         <div class="btn-text">Single Player</div>
                         <div class="btn-desc">Play against yourself</div>
                     </button>
-
                     <button id="multiplayer-btn" class="mode-btn">
                         <div class="btn-icon">⚔️</div>
                         <div class="btn-text">Multiplayer</div>
@@ -39,16 +34,12 @@
                 </div>
             </div>
         </main>
-
         <footer class="footer">
             <p id="footer-text">Click on a game mode to start playing</p>
-            <!-- App Version -->
-            <div id="app-version" style="text-align:center; color:#888; font-size:0.9em; margin-top:20px;">
-                Version: ...
+            <div id="app-version" style="text-align:center; color:#888; font-size:0.9em; margin-top:20px;">Version: ...
             </div>
         </footer>
     </div>
-
     <script>
         // Language translations
         const translations = {
@@ -80,25 +71,20 @@
         function updateLanguage(lang) {
             currentLang = lang;
             const t = translations[lang];
-
             // Update text content
             document.getElementById('main-title').textContent = t.title;
             document.getElementById('choose-mode-text').textContent = t.chooseMode;
             document.getElementById('footer-text').textContent = t.footerText;
-
             // Update button texts
             const singlePlayerBtn = document.getElementById('single-player-btn');
             singlePlayerBtn.querySelector('.btn-text').textContent = t.singlePlayer;
             singlePlayerBtn.querySelector('.btn-desc').textContent = t.singlePlayerDesc;
-
             const multiplayerBtn = document.getElementById('multiplayer-btn');
             multiplayerBtn.querySelector('.btn-text').textContent = t.multiplayer;
             multiplayerBtn.querySelector('.btn-desc').textContent = t.multiplayerDesc;
-
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`lang-${lang}`).classList.add('active');
-
             // Update page lang attribute
             document.documentElement.lang = lang;
         }

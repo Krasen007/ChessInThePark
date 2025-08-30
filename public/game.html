@@ -13,7 +13,6 @@
         <div class="game-header">
             <h1 class="game-title" id="game-title">Chess Game</h1>
             <div class="game-status" id="game-status">Loading...</div>
-
             <div class="player-info" id="player-info" style="display: none;">
                 <div class="player" id="white-player">
                     <div>⚪ <span id="white-label">White</span></div>
@@ -25,21 +24,17 @@
                 </div>
             </div>
         </div>
-
         <div class="chessboard-container">
             <div id="chessboard" class="simple-chessboard"></div>
             <div id="game-over-overlay" class="game-over-overlay">
                 <div id="game-over-message" class="game-over-message"></div>
             </div>
         </div>
-
         <div class="game-controls">
-
             <button class="control-btn" id="home-btn" onclick="goHome()">
                 <span id="home-text">Home</span>
             </button>
         </div>
-
         <div id="move-history" style="margin-top: 20px; text-align: center;">
             <h3 id="history-title">Move History</h3>
             <div id="history-list"
@@ -47,16 +42,14 @@
             </div>
         </div>
     </div>
-
     <!-- Load Socket.io from our server -->
     <script src="/socket.io/socket.io.js"></script>
-    <!-- Load chess logic -->
-    <script src="/js/chess-logic.js"></script>
-    <!-- Simple Chess.js alternative -->
-    <script src="/js/simple-chess-logic.js"></script>
-    <!-- Load board rendering and interaction logic -->
-    <script src="/js/board-logic.js"></script>
-
+    <!-- Load game rules for chess piece movement -->
+    <script src="/js/game-rules.js"></script>
+    <!-- Load game state management -->
+    <script src="/js/game-state.js"></script>
+    <!-- Load board UI rendering and interaction logic -->
+    <script src="/js/board-ui.js"></script>
 </body>
 
 </html>

@@ -166,9 +166,6 @@ body {
     color: #28a745;
 }
 
-.status-ended {
-    color: #dc3545;
-}
 
 .player-info {
     display: flex;
@@ -183,12 +180,6 @@ body {
     text-align: center;
 }
 
-.player.active {
-    background-color: #e8f5e9;
-    border-radius: 5px;
-    padding: 5px;
-    box-shadow: 0 0 5px rgba(0, 128, 0, 0.3);
-}
 
 .chessboard-container {
     display: flex;
@@ -292,15 +283,6 @@ body {
     transform: rotate(180deg);
 }
 
-.chess-square {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 30px;
-    cursor: pointer;
-    user-select: none;
-}
-
 .chess-square.light {
     background-color: #f0d9b5;
 }
@@ -338,10 +320,6 @@ body {
     font-size: 24px;
     text-align: center;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-}
-
-.chessboard-container {
-    position: relative;
 }
 
 .status-ended {
