@@ -87,8 +87,7 @@ function init() {
 // Update page language
 function updateLanguage() {
     document.documentElement.lang = currentLang;
-    document.getElementById('game-title').textContent =
-        gameMode === 'multiplayer' ? t.multiplayerTitle : t.singlePlayerTitle;
+document.getElementById('game-title').textContent = t.gameTitle;
     document.getElementById('home-text').textContent = t.home;
     document.getElementById('white-label').textContent = t.white;
     document.getElementById('black-label').textContent = t.black;
