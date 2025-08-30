@@ -19,6 +19,8 @@ const translations = {
         check: 'Check!',
         opponentLeft: 'Opponent left the game',
         newGame: 'New Game',
+        you: 'You',
+        opponent: 'Opponent',
         home: 'Home',
         white: 'White',
         black: 'Black',
@@ -40,6 +42,8 @@ const translations = {
         blackWins: 'Черните печелят!',
         opponentLeft: 'Противникът напусна играта',
         newGame: 'Нова игра',
+        you: 'Ти',
+        opponent: 'Противник',
         home: 'Начало',
         white: 'Бели',
         black: 'Черни',
@@ -284,8 +288,8 @@ function initMultiplayer() {
         playerColor = data.players.find(p => p.id === socket.id).color;
 
         document.getElementById('player-info').style.display = 'flex';
-        document.getElementById('white-name').textContent = playerColor === 'white' ? 'You' : 'Opponent';
-        document.getElementById('black-name').textContent = playerColor === 'black' ? 'You' : 'Opponent';
+        document.getElementById('white-name').textContent = playerColor === 'white' ? t.you : t.opponent;
+        document.getElementById('black-name').textContent = playerColor === 'black' ? t.you : t.opponent;
 
         setBoardEnabled(true);
         updateStatus();
