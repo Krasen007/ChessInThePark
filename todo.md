@@ -28,9 +28,6 @@ After analyzing the 'public/game.html' file and its associated resources, I've i
 5. __UI/UX Issues:__
 
    - The game over overlay could be more visually appealing
-   - No visual feedback for check state on the board itself
-   - Player names are hardcoded as "You"/"Opponent" instead of allowing custom names
-   - The chess pieces are displayed using Unicode characters which may not render consistently across all systems
 
 6. __Accessibility Issues:__
 
