@@ -121,6 +121,8 @@ class SimpleChess {
                 from: this.positionToString(fromRow, fromCol),
                 to: this.positionToString(toRow, toCol),
                 piece: piece,
+                capturedPiece: null,
+                isEnPassant: false,
                 isCheck: false,
                 isCheckmate: false,
                 isStalemate: false,
@@ -165,6 +167,8 @@ class SimpleChess {
                 from: this.positionToString(fromRow, fromCol),
                 to: this.positionToString(toRow, toCol),
                 piece: piece,
+                capturedPiece: targetPiece,
+                isEnPassant: pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !targetPiece,
                 isCheck: this.check,
                 isCheckmate: this.gameStatus === 'checkmate',
                 isStalemate: this.gameStatus === 'stalemate',
@@ -222,6 +226,8 @@ class SimpleChess {
             from: this.positionToString(fromRow, fromCol),
             to: this.positionToString(toRow, toCol),
             piece: piece,
+            capturedPiece: targetPiece,
+            isEnPassant: pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !targetPiece,
             isCheck: this.check,
             isCheckmate: this.gameStatus === 'checkmate',
             isStalemate: this.gameStatus === 'stalemate',
@@ -305,6 +311,90 @@ class SimpleChess {
     isThreefoldRepetition() {
         const currentPosition = this.getBoardFEN();
         return this.positions.get(currentPosition) >= 3;
+    }
+
+    // Generate Standard Algebraic Notation for a move
+    generateSAN(move) {
+        if (!move || !move.from || !move.to) return '';
+
+        const fromPos = this.stringToPosition(move.from);
+        const toPos = this.stringToPosition(move.to);
+        if (!fromPos || !toPos) return '';
+
+        const [fromRow, fromCol] = fromPos;
+        const [toRow, toCol] = toPos;
+        const piece = move.piece;
+
+        // Determine if this was a capture
+        const isCapture = move.capturedPiece !== null || move.isEnPassant;
+
+        let san = '';
+
+        // Handle castling
+        if (piece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
+            san = toCol > fromCol ? 'O-O' : 'O-O-O';
+        } else {
+            // Piece symbol (except for pawns)
+            if (piece.toLowerCase() !== 'p') {
+                san += piece.toUpperCase();
+            }
+
+            // For pawns, always include the file when capturing
+            if (piece.toLowerCase() === 'p' && isCapture) {
+                san += move.from[0]; // file of pawn
+            }
+
+            // Check for disambiguation (if multiple pieces of same type can move to same square)
+            if (piece.toLowerCase() !== 'p') {
+                const samePieces = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const p = this.getPiece(r, c);
+                        if (p && p.toLowerCase() === piece.toLowerCase() && p === piece &&
+                            !(r === fromRow && c === fromCol) &&
+                            this.isValidMove(r, c, toRow, toCol)) {
+                            samePieces.push([r, c]);
+                        }
+                    }
+                }
+
+                if (samePieces.length > 0) {
+                    // Check if file disambiguation is sufficient
+                    const sameFile = samePieces.some(([r, c]) => c === fromCol);
+                    const sameRank = samePieces.some(([r, c]) => r === fromRow);
+
+                    if (!sameFile) {
+                        san += move.from[0]; // file letter
+                    } else if (!sameRank) {
+                        san += move.from[1]; // rank number
+                    } else {
+                        san += move.from; // full coordinate
+                    }
+                }
+            }
+
+            // Capture indicator
+            if (isCapture) {
+                san += 'x';
+            }
+
+            // Destination square
+            san += move.to;
+
+            // Pawn promotion
+            if (move.promotedTo) {
+                san += '=' + move.promotedTo.toUpperCase();
+            }
+        }
+
+        // Check/checkmate indicators
+        if (move.isCheckmate) {
+            san += '#';
+        } else if (move.isCheck) {
+            san += '+';
+        }
+
+        return san;
     }
 
     reset() {

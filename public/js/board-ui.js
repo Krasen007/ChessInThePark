@@ -113,6 +113,20 @@ function createBoard() {
         board.classList.remove('rotated');
     }
 
+    // Create all board elements with proper grid positions
+    let elementIndex = 0;
+
+    // Add rank labels (1-8) on the left
+    for (let row = 0; row < 8; row++) {
+        const rankLabel = document.createElement('div');
+        rankLabel.className = 'rank-label';
+        rankLabel.textContent = shouldRotate ? row + 1 : 8 - row;
+        rankLabel.style.gridColumn = '1';
+        rankLabel.style.gridRow = `${row + 2}`;
+        board.appendChild(rankLabel);
+    }
+
+    // Add squares
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const square = document.createElement('div');
@@ -129,6 +143,8 @@ function createBoard() {
 
             square.dataset.row = displayRow;
             square.dataset.col = displayCol;
+            square.style.gridColumn = `${col + 2}`;
+            square.style.gridRow = `${row + 2}`;
             square.addEventListener('click', onSquareClick);
 
             const piece = game.getPiece(row, col);
@@ -140,6 +156,16 @@ function createBoard() {
 
             board.appendChild(square);
         }
+    }
+
+    // Add file labels (a-h) at the bottom
+    for (let col = 0; col < 8; col++) {
+        const fileLabel = document.createElement('div');
+        fileLabel.className = 'file-label';
+        fileLabel.textContent = String.fromCharCode(97 + (shouldRotate ? 7 - col : col));
+        fileLabel.style.gridColumn = `${col + 2}`;
+        fileLabel.style.gridRow = '10';
+        board.appendChild(fileLabel);
     }
 }
 
@@ -186,7 +212,8 @@ function onSquareClick(event) {
         const move = game.makeMove(fromRow, fromCol, row, col);
         if (move) {
             updateBoard();
-            addToHistory(`${move.from}-${move.to}`);
+            const san = game.generateSAN(move);
+            addToHistory(san);
 
             // Send move in multiplayer
             if (gameMode === 'multiplayer' && socket) {
@@ -346,7 +373,18 @@ function initMultiplayer() {
 
         // Update the UI
         updateBoard();
-        addToHistory(`${moveData.from}-${moveData.to}`);
+        const receivedMove = {
+            from: moveData.from,
+            to: moveData.to,
+            piece: moveData.piece,
+            isCheck: moveData.isCheck,
+            isCheckmate: moveData.isCheckmate,
+            isStalemate: moveData.isStalemate,
+            isDraw: moveData.isDraw,
+            promotedTo: moveData.promotedTo
+        };
+        const san = game.generateSAN(receivedMove);
+        addToHistory(san);
         updateStatus(move);
     });
 
