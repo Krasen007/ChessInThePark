@@ -397,6 +397,75 @@ class SimpleChess {
         return san;
     }
 
+    // Load board state from FEN string
+    loadFromFEN(fen) {
+        if (!fen || typeof fen !== 'string') return false;
+
+        const parts = fen.trim().split(/\s+/);
+        if (parts.length < 4) return false;
+
+        const [boardPart, turnPart, castlingPart, enPassantPart] = parts;
+        const halfMovePart = parts[4] || '0';
+        const fullMovePart = parts[5] || '1';
+
+        // Parse board position
+        const rows = boardPart.split('/');
+        if (rows.length !== 8) return false;
+
+        this.board = [];
+        for (let i = 0; i < 8; i++) {
+            const row = [];
+            let col = 0;
+
+            for (const char of rows[i]) {
+                if (char >= '1' && char <= '8') {
+                    // Empty squares
+                    const emptyCount = parseInt(char);
+                    for (let j = 0; j < emptyCount; j++) {
+                        row.push(null);
+                        col++;
+                    }
+                } else {
+                    // Piece
+                    row.push(char);
+                    col++;
+                }
+            }
+
+            if (col !== 8) return false;
+            this.board.push(row);
+        }
+
+        // Parse turn
+        this.turn = turnPart === 'w' ? 'w' : 'b';
+
+        // Parse castling rights
+        this.castlingRights = { K: false, Q: false, k: false, q: false };
+        if (castlingPart !== '-') {
+            if (castlingPart.includes('K')) this.castlingRights.K = true;
+            if (castlingPart.includes('Q')) this.castlingRights.Q = true;
+            if (castlingPart.includes('k')) this.castlingRights.k = true;
+            if (castlingPart.includes('q')) this.castlingRights.q = true;
+        }
+
+        // Parse en passant square
+        this.lastMove = null;
+        if (enPassantPart !== '-') {
+            // We don't need to store en passant for FEN loading, but we could use it for validation
+        }
+
+        // Parse halfmove clock
+        this.halfMoveClock = parseInt(halfMovePart) || 0;
+
+        // Reset other state
+        this.history = [];
+        this.gameStatus = 'active';
+        this.check = false;
+        this.positions = new Map();
+
+        return true;
+    }
+
     reset() {
         this.board = this.getStartingPosition();
         this.turn = 'w';

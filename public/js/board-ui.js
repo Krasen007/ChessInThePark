@@ -227,7 +227,9 @@ function onSquareClick(event) {
                     isDraw: game.gameStatus.startsWith('draw-'),
                     gameStatus: game.gameStatus,
                     fen: game.getBoardFEN(),
-                    promotedTo: move.promotedTo
+                    promotedTo: move.promotedTo,
+                    capturedPiece: move.capturedPiece,
+                    isEnPassant: move.isEnPassant
                 });
                 // Update status locally after sending the move
                 updateStatus(move);
@@ -377,6 +379,8 @@ function initMultiplayer() {
             from: moveData.from,
             to: moveData.to,
             piece: moveData.piece,
+            capturedPiece: moveData.capturedPiece,
+            isEnPassant: moveData.isEnPassant,
             isCheck: moveData.isCheck,
             isCheckmate: moveData.isCheckmate,
             isStalemate: moveData.isStalemate,
@@ -392,6 +396,42 @@ function initMultiplayer() {
         document.getElementById('game-status').textContent = t.opponentLeft;
         document.getElementById('game-status').className = 'game-status status-ended';
         gameStarted = false;
+    });
+
+    socket.on('game-over', (gameResult) => {
+        gameStarted = false;
+        let message = '';
+        if (gameResult.type === 'checkmate') {
+            message = gameResult.winner === playerColor ?
+                t.you + ' ' + t.whiteWins.replace('White', gameResult.winner === 'white' ? t.white : t.black) :
+                t.opponent + ' ' + t.whiteWins.replace('White', gameResult.winner === 'white' ? t.white : t.black);
+        } else if (gameResult.type === 'stalemate') {
+            message = t.stalemate;
+        } else {
+            message = t.drawRepetition; // Default to draw
+        }
+
+        document.getElementById('game-status').textContent = message;
+        document.getElementById('game-status').className = 'game-status status-ended';
+        document.getElementById('game-over-message').textContent = message;
+        document.getElementById('game-over-overlay').style.display = 'flex';
+    });
+
+    socket.on('game-reset', () => {
+        // Reset local game state
+        game.reset();
+        clearSelection();
+        document.getElementById('history-list').innerHTML = '';
+        document.getElementById('game-over-overlay').style.display = 'none';
+        createBoard();
+
+        // Reset UI state
+        gameStarted = false;
+        playerColor = null;
+        document.getElementById('game-status').textContent = t.waitingForOpponent;
+        document.getElementById('game-status').className = 'game-status status-waiting';
+        document.getElementById('player-info').style.display = 'none';
+        setBoardEnabled(false);
     });
 
     socket.on('lobby-full', () => {

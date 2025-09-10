@@ -1,10 +1,8 @@
 After analyzing the 'public/game.html' file and its associated resources, I've identified several potential issues:
 
-2. __Functional Issues:__
-
-   - The game doesn't properly handle the FEN (Forsyth-Edwards Notation) for board state synchronization between client and server
-   - In multiplayer mode, the client sends 'fen: simple-chess-state' instead of actual FEN, which breaks proper game state synchronization
-   - The multiplayer game ending logic has inconsistencies - game state is reset on the server but not properly communicated to clients
+1. __Bugs__
+   - when a pawn is promoted to queen the game does not show check if there is such case.
+   - when starting the game as black the figures switch after the first move.
 
 3. __Code Quality Issues:__
 

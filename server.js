@@ -9,6 +9,170 @@ const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
+// Simple chess logic for server-side validation
+class SimpleChess {
+    constructor() {
+        this.board = this.getStartingPosition();
+        this.turn = 'w';
+        this.history = [];
+        this.gameStatus = 'active';
+        this.check = false;
+        this.lastMove = null;
+        this.castlingRights = { K: true, Q: true, k: true, q: true };
+        this.halfMoveClock = 0;
+        this.positions = new Map();
+    }
+
+    getStartingPosition() {
+        return [
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+        ];
+    }
+
+    getPiece(row, col) {
+        return this.board[row][col];
+    }
+
+    setPiece(row, col, piece) {
+        this.board[row][col] = piece;
+    }
+
+    positionToString(row, col) {
+        return String.fromCharCode(97 + col) + (8 - row);
+    }
+
+    stringToPosition(pos) {
+        if (!pos || typeof pos !== 'string' || pos.length !== 2) return null;
+        const col = pos.charCodeAt(0) - 97;
+        const row = 8 - parseInt(pos[1]);
+        if (row < 0 || row > 7 || col < 0 || col > 7) return null;
+        return [row, col];
+    }
+
+    getBoardFEN() {
+        let fen = '';
+        for (let row = 0; row < 8; row++) {
+            let emptyCount = 0;
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece) {
+                    if (emptyCount > 0) {
+                        fen += emptyCount;
+                        emptyCount = 0;
+                    }
+                    fen += piece;
+                } else {
+                    emptyCount++;
+                }
+            }
+            if (emptyCount > 0) {
+                fen += emptyCount;
+            }
+            if (row < 7) fen += '/';
+        }
+
+        fen += ' ' + this.turn;
+
+        let castling = '';
+        if (this.castlingRights.K) castling += 'K';
+        if (this.castlingRights.Q) castling += 'Q';
+        if (this.castlingRights.k) castling += 'k';
+        if (this.castlingRights.q) castling += 'q';
+        fen += ' ' + (castling || '-');
+
+        let enPassant = '-';
+        if (this.lastMove) {
+            const [fromRow, fromCol, toRow, toCol] = this.lastMove;
+            if (Math.abs(toRow - fromRow) === 2 &&
+                (this.board[toRow][toCol] === 'P' || this.board[toRow][toCol] === 'p')) {
+                const enPassantRow = fromRow === 1 ? 2 : (fromRow === 6 ? 5 : -1);
+                if (enPassantRow !== -1) {
+                    enPassant = String.fromCharCode(97 + fromCol) + (8 - enPassantRow);
+                }
+            }
+        }
+        fen += ' ' + enPassant;
+
+        fen += ' ' + this.halfMoveClock + ' ' + Math.ceil(this.history.length / 2 + 1);
+
+        return fen;
+    }
+
+    loadFromFEN(fen) {
+        if (!fen || typeof fen !== 'string') return false;
+
+        const parts = fen.trim().split(/\s+/);
+        if (parts.length < 4) return false;
+
+        const [boardPart, turnPart, castlingPart, enPassantPart] = parts;
+        const halfMovePart = parts[4] || '0';
+        const fullMovePart = parts[5] || '1';
+
+        const rows = boardPart.split('/');
+        if (rows.length !== 8) return false;
+
+        this.board = [];
+        for (let i = 0; i < 8; i++) {
+            const row = [];
+            let col = 0;
+
+            for (const char of rows[i]) {
+                if (char >= '1' && char <= '8') {
+                    const emptyCount = parseInt(char);
+                    for (let j = 0; j < emptyCount; j++) {
+                        row.push(null);
+                        col++;
+                    }
+                } else {
+                    row.push(char);
+                    col++;
+                }
+            }
+
+            if (col !== 8) return false;
+            this.board.push(row);
+        }
+
+        this.turn = turnPart === 'w' ? 'w' : 'b';
+
+        this.castlingRights = { K: false, Q: false, k: false, q: false };
+        if (castlingPart !== '-') {
+            if (castlingPart.includes('K')) this.castlingRights.K = true;
+            if (castlingPart.includes('Q')) this.castlingRights.Q = true;
+            if (castlingPart.includes('k')) this.castlingRights.k = true;
+            if (castlingPart.includes('q')) this.castlingRights.q = true;
+        }
+
+        this.lastMove = null;
+        this.halfMoveClock = parseInt(halfMovePart) || 0;
+        this.history = [];
+        this.gameStatus = 'active';
+        this.check = false;
+        this.positions = new Map();
+
+        return true;
+    }
+
+    reset() {
+        this.board = this.getStartingPosition();
+        this.turn = 'w';
+        this.history = [];
+        this.gameStatus = 'active';
+        this.check = false;
+        this.lastMove = null;
+        this.castlingRights = { K: true, Q: true, k: true, q: true };
+        this.halfMoveClock = 0;
+        this.positions = new Map();
+    }
+}
+
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -17,7 +181,8 @@ let gameState = {
   players: [],
   currentGame: null,
   gameStarted: false,
-  currentPlayer: 'white'
+  currentPlayer: 'white',
+  serverGame: null // Server-side game instance for validation
 };
 
 // Reset game state
@@ -26,7 +191,8 @@ function resetGame() {
     players: [],
     currentGame: null,
     gameStarted: false,
-    currentPlayer: 'white'
+    currentPlayer: 'white',
+    serverGame: null
   };
 }
 
@@ -81,6 +247,12 @@ io.on('connection', (socket) => {
       gameState.gameStarted = true;
       gameState.currentGame = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Starting FEN
 
+      // Initialize server-side game for validation
+      if (typeof SimpleChess !== 'undefined') {
+        gameState.serverGame = new SimpleChess();
+        gameState.serverGame.loadFromFEN(gameState.currentGame);
+      }
+
       // Notify both players
       io.to('game-lobby').emit('game-start', {
         players: gameState.players,
@@ -118,6 +290,16 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Update server-side game state with the new FEN
+    if (gameState.serverGame && moveData.fen) {
+      const fenLoaded = gameState.serverGame.loadFromFEN(moveData.fen);
+      if (!fenLoaded) {
+        console.error('Failed to load FEN:', moveData.fen);
+        socket.emit('error', 'Invalid game state');
+        return;
+      }
+    }
+
     // Update game state
     gameState.currentGame = moveData.fen;
     gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
@@ -134,7 +316,9 @@ io.on('connection', (socket) => {
       isStalemate: Boolean(moveData.isStalemate),
       isDraw: Boolean(moveData.isDraw),
       gameStatus: moveData.gameStatus || 'active',
-      promotedTo: moveData.promotedTo
+      promotedTo: moveData.promotedTo,
+      capturedPiece: moveData.capturedPiece,
+      isEnPassant: moveData.isEnPassant
     };
 
     // Broadcast move to ALL players in the lobby, including the sender
@@ -142,6 +326,8 @@ io.on('connection', (socket) => {
 
     // Handle game end conditions
     if (moveData.isCheckmate || moveData.isStalemate || moveData.isDraw) {
+      gameState.gameStarted = false; // Mark game as ended
+
       io.to('game-lobby').emit('game-over', {
         type: moveData.isCheckmate ? 'checkmate' :
           moveData.isStalemate ? 'stalemate' :
@@ -156,7 +342,7 @@ io.on('connection', (socket) => {
       }, 5000);
     }
 
-    console.log(`Move made: ${moveData.from} to ${moveData.to}`);
+    console.log(`Move made: ${moveData.from} to ${moveData.to}, FEN: ${moveData.fen}`);
   });
 
   // Handle game over
