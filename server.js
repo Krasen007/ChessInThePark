@@ -37,11 +37,14 @@ class SimpleChess {
     }
 
     getPiece(row, col) {
+        if (row < 0 || row > 7 || col < 0 || col > 7) return null;
         return this.board[row][col];
     }
 
     setPiece(row, col, piece) {
+        if (row < 0 || row > 7 || col < 0 || col > 7) return false;
         this.board[row][col] = piece;
+        return true;
     }
 
     positionToString(row, col) {
@@ -100,7 +103,7 @@ class SimpleChess {
         }
         fen += ' ' + enPassant;
 
-        fen += ' ' + this.halfMoveClock + ' ' + Math.ceil(this.history.length / 2 + 1);
+        fen += ' ' + this.halfMoveClock + ' ' + (Math.floor(this.history.length / 2) + 1);
 
         return fen;
     }

@@ -286,25 +286,12 @@ class SimpleChess {
         if (this.castlingRights.q) castling += 'q';
         fen += ' ' + (castling || '-');
 
-        // Add en passant square - properly calculate based on last pawn double move
-        let enPassant = '-';
-        if (this.lastMove) {
-            const [fromRow, fromCol, toRow, toCol] = this.lastMove;
-            const piece = this.board[toRow][toCol];
-            // Check if it was a pawn moving two squares
-            if (Math.abs(toRow - fromRow) === 2 && piece &&
-                piece.toLowerCase() === 'p') {
-                // En passant square is the square the pawn passed over
-                const enPassantRow = fromRow === 1 ? 2 : (fromRow === 6 ? 5 : -1);
-                if (enPassantRow !== -1) {
-                    enPassant = String.fromCharCode(97 + fromCol) + (8 - enPassantRow);
-                }
-            }
-        }
+        // Add en passant square
+        const enPassant = this.getEnPassantSquare() || '-';
         fen += ' ' + enPassant;
 
         // Add halfmove clock and fullmove number
-        fen += ' ' + this.halfMoveClock + ' ' + Math.ceil(this.history.length / 2 + 1);
+        fen += ' ' + this.halfMoveClock + ' ' + (Math.floor(this.history.length / 2) + 1);
 
         return fen;
     }
@@ -312,6 +299,22 @@ class SimpleChess {
     isThreefoldRepetition() {
         const currentPosition = this.getBoardFEN();
         return this.positions.get(currentPosition) >= 3;
+    }
+
+    // Get the en passant square based on the last move
+    getEnPassantSquare() {
+        if (!this.lastMove) return null;
+        const [fromRow, fromCol, toRow, toCol] = this.lastMove;
+        const piece = this.board[toRow][toCol];
+        // Check if it was a pawn moving two squares
+        if (Math.abs(toRow - fromRow) === 2 && piece && piece.toLowerCase() === 'p') {
+            // En passant square is the square the pawn passed over
+            const enPassantRow = fromRow === 1 ? 2 : (fromRow === 6 ? 5 : -1);
+            if (enPassantRow !== -1) {
+                return String.fromCharCode(97 + fromCol) + (8 - enPassantRow);
+            }
+        }
+        return null;
     }
 
     // Generate Standard Algebraic Notation for a move
@@ -413,6 +416,8 @@ class SimpleChess {
         const rows = boardPart.split('/');
         if (rows.length !== 8) return false;
 
+        const validPieces = 'rnbqkpRNBQKP';
+
         this.board = [];
         for (let i = 0; i < 8; i++) {
             const row = [];
@@ -426,10 +431,13 @@ class SimpleChess {
                         row.push(null);
                         col++;
                     }
-                } else {
-                    // Piece
+                } else if (validPieces.includes(char)) {
+                    // Valid piece
                     row.push(char);
                     col++;
+                } else {
+                    // Invalid character
+                    return false;
                 }
             }
 
