@@ -45,7 +45,7 @@ class SimpleChess {
         }
 
         // Use ChessRules to validate the move
-        if (!ChessRules.isValidMove(piece, fromRow, fromCol, toRow, toCol, this.board)) {
+        if (!ChessRules.isValidMove(piece, fromRow, fromCol, toRow, toCol, this.board, this.lastMove, this.castlingRights)) {
             return false;
         }
 
@@ -206,7 +206,7 @@ class SimpleChess {
         this.check = ChessRules.isInCheck(this.board, nextIsWhite);
 
         // Check for game end conditions
-        if (!ChessRules.hasLegalMoves(this.board, nextIsWhite)) {
+        if (!ChessRules.hasLegalMoves(this.board, nextIsWhite, this.lastMove, this.castlingRights)) {
             if (this.check) {
                 this.gameStatus = 'checkmate';
             } else {

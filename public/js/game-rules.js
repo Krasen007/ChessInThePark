@@ -186,7 +186,7 @@ class ChessRules {
         return false;
     }
 
-    static hasLegalMoves(board, isWhiteTurn) {
+    static hasLegalMoves(board, isWhiteTurn, lastMove = null, castlingRights = null) {
         // Check if the current player has any legal moves
         for (let fromRow = 0; fromRow < 8; fromRow++) {
             for (let fromCol = 0; fromCol < 8; fromCol++) {
@@ -195,7 +195,7 @@ class ChessRules {
 
                 for (let toRow = 0; toRow < 8; toRow++) {
                     for (let toCol = 0; toCol < 8; toCol++) {
-                        if (ChessRules.isValidMove(piece, fromRow, fromCol, toRow, toCol, board)) {
+                        if (ChessRules.isValidMove(piece, fromRow, fromCol, toRow, toCol, board, lastMove, castlingRights)) {
                             // Make temporary move
                             const tempPiece = board[toRow][toCol];
                             board[toRow][toCol] = piece;
