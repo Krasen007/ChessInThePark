@@ -274,10 +274,10 @@ class SimpleChess {
             }
             if (row < 7) fen += '/';
         }
-        
+
         // Add turn indicator
         fen += ' ' + this.turn;
-        
+
         // Add castling rights
         let castling = '';
         if (this.castlingRights.K) castling += 'K';
@@ -285,14 +285,15 @@ class SimpleChess {
         if (this.castlingRights.k) castling += 'k';
         if (this.castlingRights.q) castling += 'q';
         fen += ' ' + (castling || '-');
-        
-        // Add en passant square (simplified - using last move)
+
+        // Add en passant square - properly calculate based on last pawn double move
         let enPassant = '-';
         if (this.lastMove) {
             const [fromRow, fromCol, toRow, toCol] = this.lastMove;
+            const piece = this.board[toRow][toCol];
             // Check if it was a pawn moving two squares
-            if (Math.abs(toRow - fromRow) === 2 && 
-                (this.board[toRow][toCol] === 'P' || this.board[toRow][toCol] === 'p')) {
+            if (Math.abs(toRow - fromRow) === 2 && piece &&
+                piece.toLowerCase() === 'p') {
                 // En passant square is the square the pawn passed over
                 const enPassantRow = fromRow === 1 ? 2 : (fromRow === 6 ? 5 : -1);
                 if (enPassantRow !== -1) {
@@ -301,10 +302,10 @@ class SimpleChess {
             }
         }
         fen += ' ' + enPassant;
-        
-        // Add halfmove clock and fullmove number (simplified)
+
+        // Add halfmove clock and fullmove number
         fen += ' ' + this.halfMoveClock + ' ' + Math.ceil(this.history.length / 2 + 1);
-        
+
         return fen;
     }
 

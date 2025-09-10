@@ -78,6 +78,9 @@ function init() {
     updateLanguage();
     createBoard();
 
+    // Add event listeners
+    setupEventListeners();
+
     // Initialize game mode specific functionality
     if (gameMode === 'multiplayer') {
         document.getElementById('player-info').style.display = 'none';
@@ -86,6 +89,11 @@ function init() {
     } else {
         initSinglePlayer();
     }
+}
+
+// Setup event listeners for UI elements
+function setupEventListeners() {
+    document.getElementById('home-btn').addEventListener('click', goHome);
 }
 
 // Update page language
@@ -441,25 +449,100 @@ function initMultiplayer() {
 
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 3;
+    let connectionTimeout = null;
 
-    socket.on('connect_error', () => {
+    // Enhanced connection error handling
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
         reconnectAttempts++;
-        document.getElementById('game-status').textContent = reconnectAttempts < maxReconnectAttempts ?
-            `${t.connectionError} Retrying... (${reconnectAttempts}/${maxReconnectAttempts})` :
-            `${t.connectionError} Please refresh the page when the server is back online.`;
-        document.getElementById('game-status').className = 'game-status status-ended';
 
-        if (reconnectAttempts >= maxReconnectAttempts) {
+        const statusElement = document.getElementById('game-status');
+        const overlay = document.getElementById('game-over-overlay');
+        const messageEl = document.getElementById('game-over-message');
+
+        if (reconnectAttempts < maxReconnectAttempts) {
+            statusElement.textContent = `${t.connectionError} Retrying... (${reconnectAttempts}/${maxReconnectAttempts})`;
+            statusElement.className = 'game-status status-waiting';
+
+            // Clear any existing timeout
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+            }
+
+            // Set a timeout to show more detailed error if connection doesn't recover
+            connectionTimeout = setTimeout(() => {
+                if (!socket.connected) {
+                    statusElement.textContent = 'Connection unstable. Please check your internet connection.';
+                    statusElement.className = 'game-status status-ended';
+                }
+            }, 10000);
+
+        } else {
+            statusElement.textContent = `${t.connectionError} Please refresh the page when the server is back online.`;
+            statusElement.className = 'game-status status-ended';
+
             socket.close();
             gameStarted = false;
-            document.getElementById('game-over-overlay').style.display = 'flex';
-            document.getElementById('game-over-message').textContent = 'Server connection lost. Please refresh when the server is back online.';
+
+            messageEl.textContent = 'Server connection lost. Please refresh the page to reconnect.';
+            overlay.style.display = 'flex';
         }
     });
 
     socket.on('connect', () => {
+        console.log('Successfully connected to server');
         reconnectAttempts = 0;
+
+        // Clear any pending timeout
+        if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+        }
+
         // Only join lobby if not already in a game
+        if (!gameStarted) {
+            socket.emit('join-lobby');
+        }
+    });
+
+    socket.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
+
+        const statusElement = document.getElementById('game-status');
+        if (reason === 'io server disconnect') {
+            // Server disconnected us
+            statusElement.textContent = 'Server disconnected. Please refresh the page.';
+            statusElement.className = 'game-status status-ended';
+            gameStarted = false;
+        } else if (reason === 'io client disconnect') {
+            // We disconnected ourselves
+            statusElement.textContent = 'Disconnected from server.';
+            statusElement.className = 'game-status status-ended';
+        } else {
+            // Other disconnection reasons (network issues, etc.)
+            statusElement.textContent = 'Connection lost. Attempting to reconnect...';
+            statusElement.className = 'game-status status-waiting';
+        }
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+        console.log(`Reconnection attempt ${attemptNumber}`);
+        document.getElementById('game-status').textContent = `Reconnecting... (${attemptNumber}/${maxReconnectAttempts})`;
+    });
+
+    socket.on('reconnect_failed', () => {
+        console.error('Failed to reconnect to server');
+        document.getElementById('game-status').textContent = 'Failed to reconnect. Please refresh the page.';
+        document.getElementById('game-status').className = 'game-status status-ended';
+        gameStarted = false;
+    });
+
+    socket.on('reconnect', (attemptNumber) => {
+        console.log(`Successfully reconnected on attempt ${attemptNumber}`);
+        document.getElementById('game-status').textContent = 'Reconnected! Resuming game...';
+        document.getElementById('game-status').className = 'game-status status-playing';
+
+        // Rejoin lobby if we were in a game
         if (!gameStarted) {
             socket.emit('join-lobby');
         }
@@ -470,62 +553,97 @@ function initMultiplayer() {
 
 // Update game status
 function updateStatus(moveResult) {
-    let status = '';
-    let statusClass = 'status-playing';
+    const statusElement = document.getElementById('game-status');
     const overlay = document.getElementById('game-over-overlay');
     const messageEl = document.getElementById('game-over-message');
 
-    // Handle game end conditions first
-    if (moveResult && moveResult.isCheckmate) {
-        status = game.turn === 'b' ? t.whiteWins : t.blackWins;
-        statusClass = 'status-ended';
-        messageEl.textContent = status;
-        overlay.style.display = 'flex';
-    } else if (moveResult && moveResult.isStalemate) {
-        status = t.stalemate;
-        statusClass = 'status-ended';
-        messageEl.textContent = status;
-        overlay.style.display = 'flex';
-    } else if (moveResult && moveResult.isDraw) {
-        status = moveResult.gameStatus === 'draw-repetition' ?
-            t.drawRepetition : t.drawFifty;
-        statusClass = 'status-ended';
-        messageEl.textContent = status;
-        overlay.style.display = 'flex';
-    } else if (moveResult && moveResult.isCheck) {
-        // Determine which color is in check
-        const colorInCheck = game.turn === 'w' ? 'black' : 'white';
-        status = `${t.check} (${colorInCheck} called)`;
-        statusClass = 'status-check';
-    } else if (game.check) {
-        // Check if the current player is in check (ongoing status)
-        const colorInCheck = game.turn === 'w' ? 'black' : 'white';
-        status = `${t.check} (${colorInCheck} called)`;
-        statusClass = 'status-check';
-    } else {
-        // Regular turn status
-        if (gameMode === 'multiplayer' && gameStarted && playerColor) {
-            const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
-                (game.turn === 'b' && playerColor === 'black');
-            status = isMyTurn ? t.yourTurn : t.opponentTurn;
-        } else if (gameMode === 'single') {
-            status = t.yourTurn;
-        } else if (gameMode === 'multiplayer') {
-            // Fallback for multiplayer when playerColor not set
-            status = t.opponentTurn;
-        }
-    }
+    // Determine status based on game state
+    const gameState = getGameState(moveResult);
+    const { status, statusClass, showOverlay, overlayMessage } = gameState;
 
-    // Update the status display
-    const statusElement = document.getElementById('game-status');
+    // Update status display
     statusElement.textContent = status;
     statusElement.className = `game-status ${statusClass}`;
+
+    // Handle game over overlay
+    if (showOverlay) {
+        messageEl.textContent = overlayMessage;
+        overlay.style.display = 'flex';
+    }
 
     // Update active player highlight
     if (gameStarted) {
         document.getElementById('white-player').classList.toggle('active', game.turn === 'w');
         document.getElementById('black-player').classList.toggle('active', game.turn === 'b');
     }
+}
+
+// Get current game state information
+function getGameState(moveResult) {
+    // Game end conditions
+    if (moveResult?.isCheckmate) {
+        const winner = game.turn === 'b' ? t.white : t.black;
+        return {
+            status: `${winner} ${t.whiteWins.replace('White', winner)}`,
+            statusClass: 'status-ended',
+            showOverlay: true,
+            overlayMessage: `${winner} ${t.whiteWins.replace('White', winner)}`
+        };
+    }
+
+    if (moveResult?.isStalemate) {
+        return {
+            status: t.stalemate,
+            statusClass: 'status-ended',
+            showOverlay: true,
+            overlayMessage: t.stalemate
+        };
+    }
+
+    if (moveResult?.isDraw) {
+        const drawType = moveResult.gameStatus === 'draw-repetition' ? t.drawRepetition : t.drawFifty;
+        return {
+            status: drawType,
+            statusClass: 'status-ended',
+            showOverlay: true,
+            overlayMessage: drawType
+        };
+    }
+
+    // Check conditions
+    if (moveResult?.isCheck || game.check) {
+        const colorInCheck = game.turn === 'w' ? t.black : t.white;
+        return {
+            status: `${t.check} (${colorInCheck} called)`,
+            statusClass: 'status-check',
+            showOverlay: false,
+            overlayMessage: ''
+        };
+    }
+
+    // Regular gameplay
+    return {
+        status: getTurnStatus(),
+        statusClass: 'status-playing',
+        showOverlay: false,
+        overlayMessage: ''
+    };
+}
+
+// Get current turn status
+function getTurnStatus() {
+    if (gameMode === 'single') {
+        return t.yourTurn;
+    }
+
+    if (gameMode === 'multiplayer' && gameStarted && playerColor) {
+        const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
+                        (game.turn === 'b' && playerColor === 'black');
+        return isMyTurn ? t.yourTurn : t.opponentTurn;
+    }
+
+    // Fallback for multiplayer when not fully initialized
+    return gameMode === 'multiplayer' ? t.opponentTurn : t.yourTurn;
 }
 
 
