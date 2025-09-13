@@ -208,7 +208,7 @@ class SimpleChess {
         return false;
     }
 
-    // Basic piece movement validation (simplified version)
+    // Complete chess rules validation
     isValidPieceMove(piece, fromRow, fromCol, toRow, toCol) {
         const pieceType = piece.toLowerCase();
         const isWhite = piece === piece.toUpperCase();
@@ -225,6 +225,12 @@ class SimpleChess {
             return false; // Can't capture own piece
         }
 
+        // Check castling
+        if (pieceType === 'k' && absDeltaCol === 2 && deltaRow === 0) {
+            const castlingSide = deltaCol > 0 ? 'kingside' : 'queenside';
+            return this.canCastle(isWhite, castlingSide);
+        }
+
         switch (pieceType) {
             case 'p': // Pawn
                 if (isWhite) {
@@ -235,6 +241,16 @@ class SimpleChess {
                     }
                     // Regular capture diagonally
                     if (absDeltaCol === 1 && deltaRow === -1 && targetPiece) return true;
+                    // En passant capture
+                    if (absDeltaCol === 1 && deltaRow === -1 && !targetPiece && this.lastMove) {
+                        const [lFromRow, lFromCol, lToRow, lToCol] = this.lastMove;
+                        if (this.board[toRow + 1][toCol] === 'p' && // Black pawn
+                            lFromRow === 1 && lToRow === 3 && // Moved two squares
+                            lToCol === toCol && // Same column as capture
+                            lFromCol === toCol) { // Started from that column
+                            return true;
+                        }
+                    }
                 } else {
                     // Black pawns move down (positive row direction)
                     if (deltaCol === 0 && !targetPiece) {
@@ -243,6 +259,16 @@ class SimpleChess {
                     }
                     // Regular capture diagonally
                     if (absDeltaCol === 1 && deltaRow === 1 && targetPiece) return true;
+                    // En passant capture
+                    if (absDeltaCol === 1 && deltaRow === 1 && !targetPiece && this.lastMove) {
+                        const [lFromRow, lFromCol, lToRow, lToCol] = this.lastMove;
+                        if (this.board[toRow - 1][toCol] === 'P' && // White pawn
+                            lFromRow === 6 && lToRow === 4 && // Moved two squares
+                            lToCol === toCol && // Same column as capture
+                            lFromCol === toCol) { // Started from that column
+                            return true;
+                        }
+                    }
                 }
                 return false;
 
@@ -284,6 +310,119 @@ class SimpleChess {
         return true;
     }
 
+    // Complete castling validation with all conditions
+    canCastle(isWhite, side) {
+        const row = isWhite ? 7 : 0;
+        const king = isWhite ? 'K' : 'k';
+        const rook = isWhite ? 'R' : 'r';
+
+        // Check if the king and rook are in their original positions
+        if (this.board[row][4] !== king) return false;
+
+        if (side === 'kingside') {
+            if (!this.castlingRights[isWhite ? 'K' : 'k']) return false;
+            if (this.board[row][7] !== rook) return false;
+            // Check if squares between king and rook are empty
+            if (this.board[row][5] || this.board[row][6]) return false;
+            // Check if king is in check
+            if (this.isInCheck(isWhite)) return false;
+            // Check if king passes through or ends in check
+            if (this.isSquareAttacked(row, 5, isWhite) || this.isSquareAttacked(row, 6, isWhite)) return false;
+            return true;
+        } else {
+            if (!this.castlingRights[isWhite ? 'Q' : 'q']) return false;
+            if (this.board[row][0] !== rook) return false;
+            // Check if squares between king and rook are empty
+            if (this.board[row][1] || this.board[row][2] || this.board[row][3]) return false;
+            // Check if king is in check
+            if (this.isInCheck(isWhite)) return false;
+            // Check if king passes through or ends in check
+            if (this.isSquareAttacked(row, 2, isWhite) || this.isSquareAttacked(row, 3, isWhite)) return false;
+            return true;
+        }
+    }
+
+    // Check if a square is attacked by the opponent
+    isSquareAttacked(row, col, isWhiteKing) {
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = this.board[r][c];
+                if (!piece || (isWhiteKing === (piece === piece.toUpperCase()))) continue;
+                if (this.isValidPieceMove(piece, r, c, row, col)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Check if the current player has any legal moves
+    hasLegalMoves(isWhiteTurn) {
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+            for (let fromCol = 0; fromCol < 8; fromCol++) {
+                const piece = this.board[fromRow][fromCol];
+                if (!piece || (isWhiteTurn !== (piece === piece.toUpperCase()))) continue;
+
+                for (let toRow = 0; toRow < 8; toRow++) {
+                    for (let toCol = 0; toCol < 8; toCol++) {
+                        if (this.isValidMove(fromRow, fromCol, toRow, toCol)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // Validate if a move is legal (includes check validation)
+    isValidMove(fromRow, fromCol, toRow, toCol) {
+        const piece = this.getPiece(fromRow, fromCol);
+        if (!piece) return false;
+
+        // Check if it's the right player's turn
+        const isWhite = piece === piece.toUpperCase();
+        if ((isWhite && this.turn !== 'w') || (!isWhite && this.turn !== 'b')) {
+            return false;
+        }
+
+        // Use piece movement validation
+        if (!this.isValidPieceMove(piece, fromRow, fromCol, toRow, toCol)) {
+            return false;
+        }
+
+        // Test if move would leave king in check
+        const tempPiece = this.board[toRow][toCol];
+        const originalPiece = this.board[fromRow][fromCol];
+        
+        // Handle en passant capture for test move
+        let enPassantCaptured = null;
+        const pieceType = piece.toLowerCase();
+        if (pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !tempPiece) {
+            const captureRow = isWhite ? toRow + 1 : toRow - 1;
+            enPassantCaptured = this.board[captureRow][toCol];
+            this.board[captureRow][toCol] = null;
+        }
+
+        // Make test move
+        this.board[toRow][toCol] = piece;
+        this.board[fromRow][fromCol] = null;
+
+        const inCheck = this.isInCheck(isWhite);
+
+        // Undo test move
+        this.board[fromRow][fromCol] = originalPiece;
+        this.board[toRow][toCol] = tempPiece;
+        
+        // Restore en passant captured piece
+        if (enPassantCaptured) {
+            const captureRow = isWhite ? toRow + 1 : toRow - 1;
+            this.board[captureRow][toCol] = enPassantCaptured;
+        }
+
+        return !inCheck;
+    }
+
     // Make a move and update game state
     makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
         let piece = this.getPiece(fromRow, fromCol);
@@ -293,31 +432,85 @@ class SimpleChess {
         const pieceType = piece.toLowerCase();
         const targetPiece = this.getPiece(toRow, toCol);
 
-        // Make the move
-        this.setPiece(toRow, toCol, piece);
-        this.setPiece(fromRow, fromCol, null);
-
-        // Handle pawn promotion
-        if (pieceType === 'p' && (toRow === 0 || toRow === 7)) {
-            // Automatically promote to queen
-            const promotedPiece = isWhite ? 'Q' : 'q';
-            this.setPiece(toRow, toCol, promotedPiece);
-            piece = promotedPiece;
+        // Validate the move
+        if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) {
+            return false;
         }
 
-        // Update game state
+        // Update halfmove clock
+        if (pieceType === 'p' || targetPiece) {
+            this.halfMoveClock = 0;
+        } else {
+            this.halfMoveClock++;
+        }
+
+        // Handle castling
+        if (pieceType === 'k' && Math.abs(toCol - fromCol) === 2) {
+            const row = isWhite ? 7 : 0;
+            const isKingside = toCol > fromCol;
+            const rookFromCol = isKingside ? 7 : 0;
+            const rookToCol = isKingside ? 5 : 3;
+            const rook = isWhite ? 'R' : 'r';
+
+            // Move both the king and rook
+            this.setPiece(toRow, toCol, piece);
+            this.setPiece(fromRow, fromCol, null);
+            this.setPiece(row, rookToCol, rook);
+            this.setPiece(row, rookFromCol, null);
+
+            // Update castling rights
+            if (isWhite) {
+                this.castlingRights.K = false;
+                this.castlingRights.Q = false;
+            } else {
+                this.castlingRights.k = false;
+                this.castlingRights.q = false;
+            }
+        } else {
+            // Handle en passant capture
+            if (pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !targetPiece) {
+                const captureRow = isWhite ? toRow + 1 : toRow - 1;
+                this.setPiece(captureRow, toCol, null);
+            }
+
+            // Make the regular move
+            this.setPiece(toRow, toCol, piece);
+            this.setPiece(fromRow, fromCol, null);
+
+            // Handle pawn promotion
+            if (pieceType === 'p' && (toRow === 0 || toRow === 7)) {
+                // Automatically promote to queen
+                const promotedPiece = isWhite ? 'Q' : 'q';
+                this.setPiece(toRow, toCol, promotedPiece);
+                piece = promotedPiece;
+            }
+
+            // Update castling rights
+            if (pieceType === 'k') {
+                if (isWhite) {
+                    this.castlingRights.K = false;
+                    this.castlingRights.Q = false;
+                } else {
+                    this.castlingRights.k = false;
+                    this.castlingRights.q = false;
+                }
+            } else if (pieceType === 'r') {
+                if (fromRow === 7 && fromCol === 0) this.castlingRights.Q = false;
+                if (fromRow === 7 && fromCol === 7) this.castlingRights.K = false;
+                if (fromRow === 0 && fromCol === 0) this.castlingRights.q = false;
+                if (fromRow === 0 && fromCol === 7) this.castlingRights.k = false;
+            }
+        }
+
+        // Store last move for en passant
         this.lastMove = [fromRow, fromCol, toRow, toCol];
+
+        // Switch turns
         this.turn = this.turn === 'w' ? 'b' : 'w';
 
-        // Check game status AFTER the move (including promotion)
+        // Check game status AFTER the move
         const nextIsWhite = this.turn === 'w';
         this.check = this.isInCheck(nextIsWhite);
-
-        // Update game status based on check
-        if (this.check) {
-            // For simplicity, we'll let the client handle checkmate detection
-            // The server mainly validates moves and detects check
-        }
 
         return {
             from: this.positionToString(fromRow, fromCol),
@@ -325,7 +518,8 @@ class SimpleChess {
             piece: piece,
             capturedPiece: targetPiece,
             isCheck: this.check,
-            promotedTo: pieceType === 'p' && (toRow === 0 || toRow === 7) ? piece : null
+            promotedTo: pieceType === 'p' && (toRow === 0 || toRow === 7) ? piece : null,
+            isEnPassant: pieceType === 'p' && Math.abs(toCol - fromCol) === 1 && !targetPiece
         };
     }
 }
@@ -447,35 +641,56 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Update server-side game state with the new FEN
-    if (gameState.serverGame && moveData.fen) {
-      const fenLoaded = gameState.serverGame.loadFromFEN(moveData.fen);
-      if (!fenLoaded) {
-        console.error('Failed to load FEN:', moveData.fen);
-        socket.emit('error', 'Invalid game state');
-        return;
-      }
+    // Validate move data
+    if (!moveData.from || !moveData.to || !moveData.piece) {
+      socket.emit('error', 'Invalid move data');
+      return;
+    }
+
+    // Parse move positions
+    const fromPos = gameState.serverGame.stringToPosition(moveData.from);
+    const toPos = gameState.serverGame.stringToPosition(moveData.to);
+    
+    if (!fromPos || !toPos) {
+      socket.emit('error', 'Invalid move positions');
+      return;
+    }
+
+    const [fromRow, fromCol] = fromPos;
+    const [toRow, toCol] = toPos;
+
+    // Validate the move using server-side game logic
+    if (!gameState.serverGame.isValidMove(fromRow, fromCol, toRow, toCol)) {
+      socket.emit('error', 'Invalid move');
+      return;
+    }
+
+    // Make the move on the server
+    const moveResult = gameState.serverGame.makeMove(fromRow, fromCol, toRow, toCol);
+    if (!moveResult) {
+      socket.emit('error', 'Move failed');
+      return;
     }
 
     // Update game state
-    gameState.currentGame = moveData.fen;
+    gameState.currentGame = gameState.serverGame.getBoardFEN();
     gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
 
-    // Validate move data before broadcasting
+    // Create validated move data for broadcast
     const broadcastMove = {
-      from: moveData.from,
-      to: moveData.to,
-      piece: moveData.piece,
-      fen: moveData.fen,
+      from: moveResult.from,
+      to: moveResult.to,
+      piece: moveResult.piece,
+      fen: gameState.currentGame,
       currentPlayer: gameState.currentPlayer,
-      isCheck: Boolean(moveData.isCheck),
-      isCheckmate: Boolean(moveData.isCheckmate),
-      isStalemate: Boolean(moveData.isStalemate),
+      isCheck: Boolean(moveResult.isCheck),
+      isCheckmate: Boolean(moveData.isCheckmate), // Client still handles checkmate detection
+      isStalemate: Boolean(moveData.isStalemate), // Client still handles stalemate detection
       isDraw: Boolean(moveData.isDraw),
       gameStatus: moveData.gameStatus || 'active',
-      promotedTo: moveData.promotedTo,
-      capturedPiece: moveData.capturedPiece,
-      isEnPassant: moveData.isEnPassant
+      promotedTo: moveResult.promotedTo,
+      capturedPiece: moveResult.capturedPiece,
+      isEnPassant: Boolean(moveResult.isEnPassant)
     };
 
     // Broadcast move to ALL players in the lobby, including the sender
@@ -499,7 +714,7 @@ io.on('connection', (socket) => {
       }, 5000);
     }
 
-    console.log(`Move made: ${moveData.from} to ${moveData.to}, FEN: ${moveData.fen}`);
+    console.log(`Move validated and made: ${moveResult.from} to ${moveResult.to}, FEN: ${gameState.currentGame}`);
   });
 
   // Handle game over

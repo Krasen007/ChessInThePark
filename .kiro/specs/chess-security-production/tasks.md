@@ -26,7 +26,7 @@
   - Update coordinate transformation logic to handle rotated board correctly
   - _Requirements: 4.2_
 
-- [ ] 3.3 Enhance server-side move validation
+- [x] 3.3 Enhance server-side move validation
   - Implement complete chess rules validation on the server
   - Add proper castling validation with all conditions
   - Fix en passant capture validation and piece removal
