@@ -13,19 +13,14 @@
   - Add graceful shutdown handling for the server
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 3. Fix critical game logic bugs
-- [ ] 3.1 Fix pawn promotion check detection bug
+- [x] 3. Fix critical game logic bugs
+- [x] 3.1 Fix pawn promotion check detection bug
   - Modify the pawn promotion logic in SimpleChess class to properly detect check after promotion
   - Update the move validation to check for check status after pawn promotion
   - Test pawn promotion scenarios that result in check or checkmate
   - _Requirements: 4.1_
 
 - [x] 3.2 Fix black player board orientation issue
-
-
-
-
-
   - Debug and fix the board rotation logic in board-ui.js
   - Ensure board orientation remains consistent throughout the game for black players
   - Update coordinate transformation logic to handle rotated board correctly

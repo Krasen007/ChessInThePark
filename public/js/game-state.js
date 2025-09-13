@@ -162,6 +162,23 @@ class SimpleChess {
             // Switch turns
             this.turn = this.turn === 'w' ? 'b' : 'w';
 
+            // Check game status AFTER promotion
+            const nextIsWhite = this.turn === 'w';
+            this.check = ChessRules.isInCheck(this.board, nextIsWhite);
+
+            // Check for game end conditions
+            if (!ChessRules.hasLegalMoves(this.board, nextIsWhite, this.lastMove, this.castlingRights)) {
+                if (this.check) {
+                    this.gameStatus = 'checkmate';
+                } else {
+                    this.gameStatus = 'stalemate';
+                }
+            } else if (this.halfMoveClock >= 100) {
+                this.gameStatus = 'draw-fifty';
+            } else if (this.isThreefoldRepetition()) {
+                this.gameStatus = 'draw-repetition';
+            }
+
             // Create and return the move object
             const move = {
                 from: this.positionToString(fromRow, fromCol),

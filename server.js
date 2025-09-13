@@ -174,6 +174,160 @@ class SimpleChess {
         this.halfMoveClock = 0;
         this.positions = new Map();
     }
+
+    // Check if a king is in check
+    isInCheck(isWhiteKing) {
+        // Find the king
+        let kingRow, kingCol;
+        const kingPiece = isWhiteKing ? 'K' : 'k';
+
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if (this.board[row][col] === kingPiece) {
+                    kingRow = row;
+                    kingCol = col;
+                    break;
+                }
+            }
+            if (kingRow !== undefined) break;
+        }
+
+        if (kingRow === undefined) return false;
+
+        // Check if any opponent's piece can capture the king
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (!piece || (isWhiteKing === (piece === piece.toUpperCase()))) continue;
+
+                if (this.isValidPieceMove(piece, row, col, kingRow, kingCol)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Basic piece movement validation (simplified version)
+    isValidPieceMove(piece, fromRow, fromCol, toRow, toCol) {
+        const pieceType = piece.toLowerCase();
+        const isWhite = piece === piece.toUpperCase();
+        const deltaRow = toRow - fromRow;
+        const deltaCol = toCol - fromCol;
+        const absDeltaRow = Math.abs(deltaRow);
+        const absDeltaCol = Math.abs(deltaCol);
+
+        // Basic validation
+        if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+
+        const targetPiece = this.board[toRow][toCol];
+        if (targetPiece && (isWhite === (targetPiece === targetPiece.toUpperCase()))) {
+            return false; // Can't capture own piece
+        }
+
+        switch (pieceType) {
+            case 'p': // Pawn
+                if (isWhite) {
+                    // White pawns move up (negative row direction)
+                    if (deltaCol === 0 && !targetPiece) {
+                        if (deltaRow === -1) return true;
+                        if (fromRow === 6 && deltaRow === -2 && !this.board[fromRow - 1][fromCol]) return true;
+                    }
+                    // Regular capture diagonally
+                    if (absDeltaCol === 1 && deltaRow === -1 && targetPiece) return true;
+                } else {
+                    // Black pawns move down (positive row direction)
+                    if (deltaCol === 0 && !targetPiece) {
+                        if (deltaRow === 1) return true;
+                        if (fromRow === 1 && deltaRow === 2 && !this.board[fromRow + 1][fromCol]) return true;
+                    }
+                    // Regular capture diagonally
+                    if (absDeltaCol === 1 && deltaRow === 1 && targetPiece) return true;
+                }
+                return false;
+
+            case 'r': // Rook
+                return (deltaRow === 0 || deltaCol === 0) &&
+                    this.isPathClear(fromRow, fromCol, toRow, toCol);
+
+            case 'n': // Knight
+                return (absDeltaRow === 2 && absDeltaCol === 1) ||
+                    (absDeltaRow === 1 && absDeltaCol === 2);
+
+            case 'b': // Bishop
+                return absDeltaRow === absDeltaCol &&
+                    this.isPathClear(fromRow, fromCol, toRow, toCol);
+
+            case 'q': // Queen
+                return (deltaRow === 0 || deltaCol === 0 || absDeltaRow === absDeltaCol) &&
+                    this.isPathClear(fromRow, fromCol, toRow, toCol);
+
+            case 'k': // King
+                return absDeltaRow <= 1 && absDeltaCol <= 1;
+        }
+        return false;
+    }
+
+    // Check if path is clear between two squares
+    isPathClear(fromRow, fromCol, toRow, toCol) {
+        const rowStep = fromRow === toRow ? 0 : (toRow - fromRow) / Math.abs(toRow - fromRow);
+        const colStep = fromCol === toCol ? 0 : (toCol - fromCol) / Math.abs(toCol - fromCol);
+
+        let currentRow = fromRow + rowStep;
+        let currentCol = fromCol + colStep;
+
+        while (currentRow !== toRow || currentCol !== toCol) {
+            if (this.board[currentRow][currentCol]) return false;
+            currentRow += rowStep;
+            currentCol += colStep;
+        }
+        return true;
+    }
+
+    // Make a move and update game state
+    makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
+        let piece = this.getPiece(fromRow, fromCol);
+        if (!piece) return false;
+
+        const isWhite = piece === piece.toUpperCase();
+        const pieceType = piece.toLowerCase();
+        const targetPiece = this.getPiece(toRow, toCol);
+
+        // Make the move
+        this.setPiece(toRow, toCol, piece);
+        this.setPiece(fromRow, fromCol, null);
+
+        // Handle pawn promotion
+        if (pieceType === 'p' && (toRow === 0 || toRow === 7)) {
+            // Automatically promote to queen
+            const promotedPiece = isWhite ? 'Q' : 'q';
+            this.setPiece(toRow, toCol, promotedPiece);
+            piece = promotedPiece;
+        }
+
+        // Update game state
+        this.lastMove = [fromRow, fromCol, toRow, toCol];
+        this.turn = this.turn === 'w' ? 'b' : 'w';
+
+        // Check game status AFTER the move (including promotion)
+        const nextIsWhite = this.turn === 'w';
+        this.check = this.isInCheck(nextIsWhite);
+
+        // Update game status based on check
+        if (this.check) {
+            // For simplicity, we'll let the client handle checkmate detection
+            // The server mainly validates moves and detects check
+        }
+
+        return {
+            from: this.positionToString(fromRow, fromCol),
+            to: this.positionToString(toRow, toCol),
+            piece: piece,
+            capturedPiece: targetPiece,
+            isCheck: this.check,
+            promotedTo: pieceType === 'p' && (toRow === 0 || toRow === 7) ? piece : null
+        };
+    }
 }
 
 // Serve static files
