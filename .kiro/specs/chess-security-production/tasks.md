@@ -20,7 +20,12 @@
   - Test pawn promotion scenarios that result in check or checkmate
   - _Requirements: 4.1_
 
-- [ ] 3.2 Fix black player board orientation issue
+- [x] 3.2 Fix black player board orientation issue
+
+
+
+
+
   - Debug and fix the board rotation logic in board-ui.js
   - Ensure board orientation remains consistent throughout the game for black players
   - Update coordinate transformation logic to handle rotated board correctly

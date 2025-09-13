@@ -99,7 +99,7 @@ function setupEventListeners() {
 // Update page language
 function updateLanguage() {
     document.documentElement.lang = currentLang;
-document.getElementById('game-title').textContent = t.gameTitle;
+    document.getElementById('game-title').textContent = t.gameTitle;
     document.getElementById('home-text').textContent = t.home;
     document.getElementById('white-label').textContent = t.white;
     document.getElementById('black-label').textContent = t.black;
@@ -120,9 +120,6 @@ function createBoard() {
     } else {
         board.classList.remove('rotated');
     }
-
-    // Create all board elements with proper grid positions
-    let elementIndex = 0;
 
     // Add rank labels (1-8) on the left
     for (let row = 0; row < 8; row++) {
@@ -145,16 +142,15 @@ function createBoard() {
                 square.classList.add('rotated');
             }
 
-            // For rotated board, we need to adjust the coordinates
-            const displayRow = shouldRotate ? 7 - row : row;
-            const displayCol = shouldRotate ? 7 - col : col;
-
-            square.dataset.row = displayRow;
-            square.dataset.col = displayCol;
+            // Store the actual game board coordinates in data attributes
+            // These remain consistent regardless of rotation
+            square.dataset.row = row;
+            square.dataset.col = col;
             square.style.gridColumn = `${col + 2}`;
             square.style.gridRow = `${row + 2}`;
             square.addEventListener('click', onSquareClick);
 
+            // Get piece from game board using actual coordinates
             const piece = game.getPiece(row, col);
             if (piece) {
                 square.textContent = pieceSymbols[piece] || piece;
@@ -190,14 +186,10 @@ function setBoardEnabled(enabled) {
 function onSquareClick(event) {
     if (!gameStarted) return;
 
-    // Get the actual board coordinates considering rotation
-    const displayRow = parseInt(event.target.dataset.row);
-    const displayCol = parseInt(event.target.dataset.col);
-
-    // Transform coordinates back to game logic coordinates if board is rotated
-    const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
-    const row = shouldRotate ? 7 - displayRow : displayRow;
-    const col = shouldRotate ? 7 - displayCol : displayCol;
+    // Get the actual board coordinates from data attributes
+    // These are always the real game board coordinates regardless of rotation
+    const row = parseInt(event.target.dataset.row);
+    const col = parseInt(event.target.dataset.col);
 
     // In multiplayer, check if it's our turn
     if (gameMode === 'multiplayer' && playerColor) {
@@ -268,21 +260,14 @@ function clearSelection() {
 
 // Update board display
 function updateBoard() {
-    const boardElement = document.getElementById('chessboard');
-    const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
-
     const squares = document.querySelectorAll('.chess-square');
-    squares.forEach((square, index) => {
-        const row = Math.floor(index / 8);
-        const col = index % 8;
+    squares.forEach((square) => {
+        // Get the actual board coordinates from data attributes
+        const row = parseInt(square.dataset.row);
+        const col = parseInt(square.dataset.col);
 
-        // For rotated board, we need to adjust the coordinates when getting pieces
-        // The game board array is never rotated, so we need to transform the coordinates
-        // to get the correct piece for display
-        const gameRow = shouldRotate ? 7 - row : row;
-        const gameCol = shouldRotate ? 7 - col : col;
-
-        const piece = game.getPiece(gameRow, gameCol);
+        // Get piece directly using the stored coordinates
+        const piece = game.getPiece(row, col);
         if (piece) {
             square.textContent = pieceSymbols[piece] || piece;
         } else {
@@ -328,6 +313,8 @@ function initMultiplayer() {
         document.getElementById('white-name').textContent = playerColor === 'white' ? t.you : t.opponent;
         document.getElementById('black-name').textContent = playerColor === 'black' ? t.you : t.opponent;
 
+        // Recreate the board with proper orientation for the player color
+        createBoard();
         setBoardEnabled(true);
         updateStatus();
     });
@@ -341,30 +328,16 @@ function initMultiplayer() {
 
         if (!fromPos || !toPos) return;
 
-        // Transform coordinates for rotated board if needed
-        const shouldRotate = gameMode === 'multiplayer' && playerColor === 'black';
-        let [fromRow, fromCol] = fromPos;
-        let [toRow, toCol] = toPos;
-
-        if (shouldRotate) {
-            fromRow = 7 - fromRow;
-            fromCol = 7 - fromCol;
-            toRow = 7 - toRow;
-            toCol = 7 - toCol;
-        }
+        // Use coordinates directly - no transformation needed
+        // The game logic always uses the same coordinate system
+        const [fromRow, fromCol] = fromPos;
+        const [toRow, toCol] = toPos;
 
         // Validate that there is a piece at the from position
-        // We need to transform back to game coordinates for validation
-        const gameFromRow = shouldRotate ? 7 - fromRow : fromRow;
-        const gameFromCol = shouldRotate ? 7 - fromCol : fromCol;
-        if (!game.getPiece(gameFromRow, gameFromCol)) return;
+        if (!game.getPiece(fromRow, fromCol)) return;
 
-        // Make the move and get the result
-        // Transform back to game coordinates for the move
-        const gameFromPos = shouldRotate ? [7 - fromRow, 7 - fromCol] : [fromRow, fromCol];
-        const gameToPos = shouldRotate ? [7 - toRow, 7 - toCol] : [toRow, toCol];
-
-        const move = game.makeMove(gameFromPos[0], gameFromPos[1], gameToPos[0], gameToPos[1], moveData.promotedTo);
+        // Make the move using the actual game coordinates
+        const move = game.makeMove(fromRow, fromCol, toRow, toCol, moveData.promotedTo);
         if (!move) return;
 
         // Synchronize game state with server
@@ -638,7 +611,7 @@ function getTurnStatus() {
 
     if (gameMode === 'multiplayer' && gameStarted && playerColor) {
         const isMyTurn = (game.turn === 'w' && playerColor === 'white') ||
-                        (game.turn === 'b' && playerColor === 'black');
+            (game.turn === 'b' && playerColor === 'black');
         return isMyTurn ? t.yourTurn : t.opponentTurn;
     }
 
