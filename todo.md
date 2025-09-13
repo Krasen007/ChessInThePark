@@ -5,3 +5,11 @@
 - **Encouraging Donations Subtly:** Since donations are your business model, you need to make it easy for people to contribute without being pushy. Integrate a small, unobtrusive "Donate" button in the corner of the screen that only appears after a game is completed. When a player taps it, a small pop-up could say something like, "Enjoy the game? Your support helps keep it free for everyone!" This makes the request part of the experience rather than a roadblock.
 - **Create a "Spectator Mode"**: where people who scan the QR code can watch a game in progress.
 - **Spectator Voting**: They could even vote for who they think will win, and if they guess correctly, they get a little digital "award" or a fun fact about Varna. This would encourage people to gather around the bench and engage with the game without even playing.
+
+## Bugs
+
+- **fix:** 
+
+## Features
+
+- **add:** the taken pieces from the game so we could see what we have taken or if we have more than the opponent.

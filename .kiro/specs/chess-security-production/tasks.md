@@ -51,14 +51,23 @@
   - Implement connection limits per IP address for Socket.io
   - _Requirements: 1.1, 1.4, 1.6_
 
-- [ ] 6. Add performance monitoring and resource management
-- [ ] 6.1 Implement memory management and cleanup
+- [x] 6. Add performance monitoring and resource management
+
+
+
+
+
+- [x] 6.1 Implement memory management and cleanup
+
+
   - Add proper cleanup for disconnected players and ended games
   - Implement garbage collection for stale game states
   - Add memory usage monitoring and alerts
   - _Requirements: 5.1, 5.2, 5.5_
 
-- [ ] 6.2 Add performance metrics and monitoring
+
+- [-] 6.2 Add performance metrics and monitoring
+
   - Implement metrics collection for connections, games, and errors
   - Create performance monitoring endpoints
   - Add logging for performance-related events

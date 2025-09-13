@@ -2,12 +2,20 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const MemoryManager = require('./lib/memory-manager');
+const PerformanceMonitor = require('./lib/performance-monitor');
+const Logger = require('./lib/logger');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
+
+// Initialize memory manager, performance monitor, and logger
+const logger = new Logger(2000); // Keep last 2000 log entries
+const memoryManager = new MemoryManager();
+const performanceMonitor = new PerformanceMonitor();
 
 // Simple chess logic for server-side validation
 class SimpleChess {
@@ -549,7 +557,19 @@ function resetGame() {
 
 // Socket connection handling
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+  logger.logConnection(socket.id, 'connected', { 
+    remoteAddress: socket.handshake.address,
+    userAgent: socket.handshake.headers['user-agent']
+  });
+  
+  // Record connection metrics
+  performanceMonitor.recordConnection(true);
+  
+  // Register player in memory manager
+  memoryManager.registerPlayer(socket.id, {
+    id: socket.id,
+    connectedAt: new Date()
+  });
 
   // Clean up any stale connections
   const staleConnections = gameState.players.filter(p => {
@@ -572,149 +592,230 @@ io.on('connection', (socket) => {
 
   // Handle joining the multiplayer lobby
   socket.on('join-lobby', () => {
-    // Check if lobby is full
-    if (gameState.players.length >= 2) {
-      socket.emit('lobby-full');
-      return;
-    }
-
-    // Add player to lobby
-    const playerColor = gameState.players.length === 0 ? 'white' : 'black';
-    const player = {
-      id: socket.id,
-      color: playerColor
-    };
-
-    gameState.players.push(player);
-    socket.join('game-lobby');
-
-    console.log(`Player joined as ${playerColor}. Total players: ${gameState.players.length}`);
-
-    if (gameState.players.length === 1) {
-      // First player - waiting for opponent
-      socket.emit('waiting-for-opponent');
-    } else if (gameState.players.length === 2) {
-      // Second player joined - start game
-      gameState.gameStarted = true;
-      gameState.currentGame = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Starting FEN
-
-      // Initialize server-side game for validation
-      if (typeof SimpleChess !== 'undefined') {
-        gameState.serverGame = new SimpleChess();
-        gameState.serverGame.loadFromFEN(gameState.currentGame);
+    const startTime = Date.now();
+    
+    try {
+      // Update player activity
+      memoryManager.updatePlayerActivity(socket.id);
+      
+      // Check if lobby is full
+      if (gameState.players.length >= 2) {
+        socket.emit('lobby-full');
+        performanceMonitor.recordResponseTime(Date.now() - startTime);
+        return;
       }
 
-      // Notify both players
-      io.to('game-lobby').emit('game-start', {
-        players: gameState.players,
-        fen: gameState.currentGame,
-        currentPlayer: gameState.currentPlayer
+      // Add player to lobby
+      const playerColor = gameState.players.length === 0 ? 'white' : 'black';
+      const player = {
+        id: socket.id,
+        color: playerColor
+      };
+
+      gameState.players.push(player);
+      socket.join('game-lobby');
+
+      // Update player in memory manager with game info
+      memoryManager.registerPlayer(socket.id, {
+        id: socket.id,
+        color: playerColor,
+        gameId: 'lobby-game'
       });
 
-      console.log('Game started with 2 players');
+      logger.logGame('lobby-game', 'player-joined', {
+        playerId: socket.id,
+        playerColor,
+        totalPlayers: gameState.players.length
+      });
+
+      if (gameState.players.length === 1) {
+        // First player - waiting for opponent
+        socket.emit('waiting-for-opponent');
+      } else if (gameState.players.length === 2) {
+        // Second player joined - start game
+        gameState.gameStarted = true;
+        gameState.currentGame = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Starting FEN
+
+        // Register game in memory manager
+        memoryManager.registerGame('lobby-game', {
+          id: 'lobby-game',
+          players: gameState.players,
+          fen: gameState.currentGame,
+          status: 'active'
+        });
+        
+        // Record game start in performance monitor
+        performanceMonitor.recordGameStart('lobby-game');
+
+        // Initialize server-side game for validation
+        if (typeof SimpleChess !== 'undefined') {
+          gameState.serverGame = new SimpleChess();
+          gameState.serverGame.loadFromFEN(gameState.currentGame);
+        }
+
+        // Notify both players
+        io.to('game-lobby').emit('game-start', {
+          players: gameState.players,
+          fen: gameState.currentGame,
+          currentPlayer: gameState.currentPlayer
+        });
+
+        logger.logGame('lobby-game', 'started', {
+          players: gameState.players.map(p => ({ id: p.id, color: p.color })),
+          fen: gameState.currentGame
+        });
+      }
+      
+      performanceMonitor.recordResponseTime(Date.now() - startTime);
+    } catch (error) {
+      logger.logError(error, { endpoint: 'join-lobby', playerId: socket.id });
+      performanceMonitor.recordError(error, 'join-lobby', { playerId: socket.id });
+      socket.emit('error', 'Failed to join lobby');
     }
   });
 
   // Handle chess moves
   socket.on('make-move', (moveData) => {
-    if (!gameState.gameStarted) {
-      socket.emit('error', 'Game not started');
-      return;
-    }
-
-    // Find the player making the move
-    const player = gameState.players.find(p => p.id === socket.id);
-    if (!player) {
-      socket.emit('error', 'Player not found');
-      return;
-    }
-
-    // Check if it's the player's turn
-    if (player.color !== gameState.currentPlayer) {
-      socket.emit('error', 'Not your turn');
-      return;
-    }
-
-    // Handle pawn promotion request
-    if (moveData.needsPromotion) {
-      socket.emit('promotion-required');
-      return;
-    }
-
-    // Validate move data
-    if (!moveData.from || !moveData.to || !moveData.piece) {
-      socket.emit('error', 'Invalid move data');
-      return;
-    }
-
-    // Parse move positions
-    const fromPos = gameState.serverGame.stringToPosition(moveData.from);
-    const toPos = gameState.serverGame.stringToPosition(moveData.to);
+    const startTime = Date.now();
     
-    if (!fromPos || !toPos) {
-      socket.emit('error', 'Invalid move positions');
-      return;
-    }
+    try {
+      // Update player activity
+      memoryManager.updatePlayerActivity(socket.id);
+      memoryManager.updateGameActivity('lobby-game');
+      
+      if (!gameState.gameStarted) {
+        socket.emit('error', 'Game not started');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-    const [fromRow, fromCol] = fromPos;
-    const [toRow, toCol] = toPos;
+      // Find the player making the move
+      const player = gameState.players.find(p => p.id === socket.id);
+      if (!player) {
+        socket.emit('error', 'Player not found');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-    // Validate the move using server-side game logic
-    if (!gameState.serverGame.isValidMove(fromRow, fromCol, toRow, toCol)) {
-      socket.emit('error', 'Invalid move');
-      return;
-    }
+      // Check if it's the player's turn
+      if (player.color !== gameState.currentPlayer) {
+        socket.emit('error', 'Not your turn');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-    // Make the move on the server
-    const moveResult = gameState.serverGame.makeMove(fromRow, fromCol, toRow, toCol);
-    if (!moveResult) {
-      socket.emit('error', 'Move failed');
-      return;
-    }
+      // Handle pawn promotion request
+      if (moveData.needsPromotion) {
+        socket.emit('promotion-required');
+        performanceMonitor.recordMove(Date.now() - startTime, true);
+        return;
+      }
 
-    // Update game state
-    gameState.currentGame = gameState.serverGame.getBoardFEN();
-    gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+      // Validate move data
+      if (!moveData.from || !moveData.to || !moveData.piece) {
+        socket.emit('error', 'Invalid move data');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-    // Create validated move data for broadcast
-    const broadcastMove = {
-      from: moveResult.from,
-      to: moveResult.to,
-      piece: moveResult.piece,
-      fen: gameState.currentGame,
-      currentPlayer: gameState.currentPlayer,
-      isCheck: Boolean(moveResult.isCheck),
-      isCheckmate: Boolean(moveData.isCheckmate), // Client still handles checkmate detection
-      isStalemate: Boolean(moveData.isStalemate), // Client still handles stalemate detection
-      isDraw: Boolean(moveData.isDraw),
-      gameStatus: moveData.gameStatus || 'active',
-      promotedTo: moveResult.promotedTo,
-      capturedPiece: moveResult.capturedPiece,
-      isEnPassant: Boolean(moveResult.isEnPassant)
-    };
+      // Parse move positions
+      const fromPos = gameState.serverGame.stringToPosition(moveData.from);
+      const toPos = gameState.serverGame.stringToPosition(moveData.to);
+      
+      if (!fromPos || !toPos) {
+        socket.emit('error', 'Invalid move positions');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-    // Broadcast move to ALL players in the lobby, including the sender
-    io.to('game-lobby').emit('move-update', broadcastMove);
+      const [fromRow, fromCol] = fromPos;
+      const [toRow, toCol] = toPos;
 
-    // Handle game end conditions
-    if (moveData.isCheckmate || moveData.isStalemate || moveData.isDraw) {
-      gameState.gameStarted = false; // Mark game as ended
+      // Validate the move using server-side game logic
+      if (!gameState.serverGame.isValidMove(fromRow, fromCol, toRow, toCol)) {
+        socket.emit('error', 'Invalid move');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
 
-      io.to('game-lobby').emit('game-over', {
-        type: moveData.isCheckmate ? 'checkmate' :
-          moveData.isStalemate ? 'stalemate' :
-            moveData.gameStatus,
-        winner: moveData.isCheckmate ? player.color : null
+      // Make the move on the server
+      const moveResult = gameState.serverGame.makeMove(fromRow, fromCol, toRow, toCol);
+      if (!moveResult) {
+        socket.emit('error', 'Move failed');
+        performanceMonitor.recordMove(Date.now() - startTime, false);
+        return;
+      }
+
+      // Update game state
+      gameState.currentGame = gameState.serverGame.getBoardFEN();
+      gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
+
+      // Create validated move data for broadcast
+      const broadcastMove = {
+        from: moveResult.from,
+        to: moveResult.to,
+        piece: moveResult.piece,
+        fen: gameState.currentGame,
+        currentPlayer: gameState.currentPlayer,
+        isCheck: Boolean(moveResult.isCheck),
+        isCheckmate: Boolean(moveData.isCheckmate), // Client still handles checkmate detection
+        isStalemate: Boolean(moveData.isStalemate), // Client still handles stalemate detection
+        isDraw: Boolean(moveData.isDraw),
+        gameStatus: moveData.gameStatus || 'active',
+        promotedTo: moveResult.promotedTo,
+        capturedPiece: moveResult.capturedPiece,
+        isEnPassant: Boolean(moveResult.isEnPassant)
+      };
+
+      // Broadcast move to ALL players in the lobby, including the sender
+      io.to('game-lobby').emit('move-update', broadcastMove);
+
+      // Record successful move
+      performanceMonitor.recordMove(Date.now() - startTime, true);
+
+      // Handle game end conditions
+      if (moveData.isCheckmate || moveData.isStalemate || moveData.isDraw) {
+        gameState.gameStarted = false; // Mark game as ended
+        
+        // Record game end
+        const reason = moveData.isCheckmate || moveData.isStalemate ? 'completed' : 'draw';
+        performanceMonitor.recordGameEnd('lobby-game', reason);
+
+        io.to('game-lobby').emit('game-over', {
+          type: moveData.isCheckmate ? 'checkmate' :
+            moveData.isStalemate ? 'stalemate' :
+              moveData.gameStatus,
+          winner: moveData.isCheckmate ? player.color : null
+        });
+
+        // Reset the game state after a delay
+        setTimeout(() => {
+          memoryManager.removeGame('lobby-game');
+          resetGame();
+          io.to('game-lobby').emit('game-reset');
+        }, 5000);
+      }
+
+      logger.logMove(socket.id, moveData, {
+        valid: true,
+        processingTime: Date.now() - startTime,
+        from: moveResult.from,
+        to: moveResult.to,
+        fen: gameState.currentGame
       });
-
-      // Reset the game state after a delay
-      setTimeout(() => {
-        resetGame();
-        io.to('game-lobby').emit('game-reset');
-      }, 5000);
+    } catch (error) {
+      logger.logError(error, { 
+        endpoint: 'make-move', 
+        playerId: socket.id, 
+        moveData: moveData 
+      });
+      performanceMonitor.recordError(error, 'make-move', { 
+        playerId: socket.id, 
+        moveData: moveData 
+      });
+      performanceMonitor.recordMove(Date.now() - startTime, false);
+      socket.emit('error', 'Move processing failed');
     }
-
-    console.log(`Move validated and made: ${moveResult.from} to ${moveResult.to}, FEN: ${gameState.currentGame}`);
   });
 
   // Handle game over
@@ -738,7 +839,12 @@ io.on('connection', (socket) => {
 
   // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    logger.logConnection(socket.id, 'disconnected');
+    
+    // Record disconnection
+    performanceMonitor.recordDisconnection();
+    memoryManager.removePlayer(socket.id);
+    
     handlePlayerLeaving(socket);
   });
 });
@@ -781,17 +887,269 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'game.html'));
 });
 
+app.get('/monitoring', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'monitoring.html'));
+});
+
 // Return app version from package.json
 app.get('/version', (req, res) => {
+  const startTime = Date.now();
   try {
     const pkg = require(path.join(__dirname, 'package.json'));
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
     res.json({ version: pkg.version });
   } catch (err) {
+    performanceMonitor.recordError(err, '/version');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
     res.status(500).json({ error: 'Unable to read version' });
   }
 });
 
+// Performance monitoring endpoints
+app.get('/metrics', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const metrics = performanceMonitor.getMetrics();
+    const memoryStats = memoryManager.getMemoryStats();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      performance: metrics,
+      memory: memoryStats,
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    performanceMonitor.recordError(err, '/metrics');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve metrics' });
+  }
+});
+
+app.get('/metrics/summary', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const summary = performanceMonitor.getMetricsSummary();
+    const memoryUsage = memoryManager.getMemoryUsageSummary();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      ...summary,
+      memory: memoryUsage,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    performanceMonitor.recordError(err, '/metrics/summary');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve metrics summary' });
+  }
+});
+
+app.get('/metrics/errors', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const errorBreakdown = performanceMonitor.getErrorBreakdown();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json(errorBreakdown);
+  } catch (err) {
+    performanceMonitor.recordError(err, '/metrics/errors');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve error metrics' });
+  }
+});
+
+app.get('/metrics/alerts', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const alerts = performanceMonitor.getPerformanceAlerts();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      alerts,
+      count: alerts.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    performanceMonitor.recordError(err, '/metrics/alerts');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve performance alerts' });
+  }
+});
+
+// Memory management endpoints
+app.get('/memory/stats', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const stats = memoryManager.getMemoryStats();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json(stats);
+  } catch (err) {
+    performanceMonitor.recordError(err, '/memory/stats');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve memory stats' });
+  }
+});
+
+app.post('/memory/cleanup', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const result = memoryManager.cleanupStaleResources();
+    const gcResult = memoryManager.forceGarbageCollection();
+    
+    logger.info('Manual cleanup triggered', { result, gcResult });
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      message: 'Cleanup completed',
+      cleaned: result,
+      garbageCollection: gcResult,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    logger.logError(err, { endpoint: '/memory/cleanup' });
+    performanceMonitor.recordError(err, '/memory/cleanup');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Cleanup failed' });
+  }
+});
+
+// Logging endpoints
+app.get('/logs', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const options = {
+      level: req.query.level,
+      source: req.query.source,
+      since: req.query.since,
+      search: req.query.search,
+      limit: parseInt(req.query.limit) || 100
+    };
+    
+    const logs = logger.getLogs(options);
+    const stats = logger.getLogStats();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      logs,
+      stats,
+      filters: options,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    logger.logError(err, { endpoint: '/logs' });
+    performanceMonitor.recordError(err, '/logs');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve logs' });
+  }
+});
+
+app.get('/logs/stats', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const stats = logger.getLogStats();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json(stats);
+  } catch (err) {
+    logger.logError(err, { endpoint: '/logs/stats' });
+    performanceMonitor.recordError(err, '/logs/stats');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to retrieve log stats' });
+  }
+});
+
+app.post('/logs/clear', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const clearedCount = logger.clearLogs();
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.json({
+      message: 'Logs cleared',
+      clearedCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    logger.logError(err, { endpoint: '/logs/clear' });
+    performanceMonitor.recordError(err, '/logs/clear');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to clear logs' });
+  }
+});
+
+app.get('/logs/export', (req, res) => {
+  const startTime = Date.now();
+  try {
+    const options = {
+      level: req.query.level,
+      source: req.query.source,
+      since: req.query.since,
+      search: req.query.search,
+      limit: parseInt(req.query.limit) || 1000
+    };
+    
+    const exportData = logger.exportLogs(options);
+    
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="server-logs-${Date.now()}.json"`);
+    res.json(exportData);
+  } catch (err) {
+    logger.logError(err, { endpoint: '/logs/export' });
+    performanceMonitor.recordError(err, '/logs/export');
+    performanceMonitor.recordResponseTime(Date.now() - startTime);
+    res.status(500).json({ error: 'Unable to export logs' });
+  }
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  gracefulShutdown();
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  gracefulShutdown();
+});
+
+function gracefulShutdown() {
+  logger.info('Starting graceful shutdown...');
+  
+  // Stop accepting new connections
+  server.close(() => {
+    logger.info('HTTP server closed');
+    
+    // Cleanup memory manager
+    memoryManager.shutdown();
+    
+    // Close all socket connections
+    io.close(() => {
+      logger.info('Socket.io server closed');
+      
+      // Restore console and exit
+      logger.restoreConsole();
+      process.exit(0);
+    });
+  });
+  
+  // Force exit after 10 seconds
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    logger.restoreConsole();
+    process.exit(1);
+  }, 10000);
+}
+
 // Start server
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  logger.info(`Server started on port ${PORT}`, { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('Monitoring endpoints available', {
+    monitoring: `http://localhost:${PORT}/monitoring`,
+    metrics: `http://localhost:${PORT}/metrics`,
+    logs: `http://localhost:${PORT}/logs`
+  });
 });

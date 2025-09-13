@@ -11,11 +11,11 @@
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-GVJ5R3SZ5H"></script>
 <script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
 
-  gtag('config', 'G-GVJ5R3SZ5H');
+    gtag('config', 'G-GVJ5R3SZ5H');
 </script>
 
 <body>
@@ -46,7 +46,14 @@
         </main>
         <footer class="footer">
             <p id="footer-text">Click on a game mode to start playing</p>
-            <div id="app-version" style="text-align:center; color:#888; font-size:0.9em; margin-top:20px;">Version: ...
+            <div style="text-align:center; margin-top:20px;">
+                <div id="app-version" style="color:#888; font-size:0.9em;">Version: ...</div>
+                <div style="margin-top:10px;">
+                    <a href="/monitoring"
+                        style="color:#667eea; text-decoration:none; font-size:0.9em; padding:5px 10px; border:1px solid #667eea; border-radius:5px; display:inline-block;">
+                        📊 Server Monitoring
+                    </a>
+                </div>
             </div>
         </footer>
     </div>

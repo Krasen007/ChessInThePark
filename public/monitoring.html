@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Server Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .last-updated {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.5rem;
+        }
+
+        .connections-icon { background: linear-gradient(45deg, #4CAF50, #45a049); }
+        .games-icon { background: linear-gradient(45deg, #2196F3, #1976D2); }
+        .performance-icon { background: linear-gradient(45deg, #FF9800, #F57C00); }
+        .memory-icon { background: linear-gradient(45deg, #9C27B0, #7B1FA2); }
+        .errors-icon { background: linear-gradient(45deg, #F44336, #D32F2F); }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .status-good { color: #4CAF50; }
+        .status-warning { color: #FF9800; }
+        .status-error { color: #F44336; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            transition: width 0.3s ease;
+        }
+
+        .alerts-section {
+            margin-top: 30px;
+        }
+
+        .alert {
+            background: white;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .alert-warning {
+            border-left-color: #FF9800;
+            background: linear-gradient(90deg, rgba(255,152,0,0.1), rgba(255,255,255,0.1));
+        }
+
+        .alert-error {
+            border-left-color: #F44336;
+            background: linear-gradient(90deg, rgba(244,67,54,0.1), rgba(255,255,255,0.1));
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .alert-message {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .error-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .error-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .error-time {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .refresh-btn {
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 20px;
+            }
+        }
+
+        .no-alerts {
+            text-align: center;
+            color: #4CAF50;
+            font-weight: 600;
+            padding: 20px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 10px;
+            border: 2px dashed #4CAF50;
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry:hover {
+            background: #f8f9fa;
+        }
+
+        .log-timestamp {
+            color: #666;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            min-width: 80px;
+        }
+
+        .log-level {
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .log-level-ERROR {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .log-level-WARN {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .log-level-INFO {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .log-level-DEBUG {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .log-level-TRACE {
+            background: #f5f5f5;
+            color: #616161;
+        }
+
+        .log-message {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .log-source {
+            background: #f0f0f0;
+            color: #666;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .log-context {
+            margin-top: 4px;
+            padding: 4px 8px;
+            background: #f8f9fa;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            color: #666;
+            border-left: 3px solid #ddd;
+        }
+
+        .log-controls select,
+        .log-controls button {
+            font-size: 0.9rem;
+        }
+
+        .log-controls button:hover {
+            opacity: 0.8;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏰 Chess Server Monitor</h1>
+            <div class="last-updated" id="lastUpdated">
+                Last updated: Loading...
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Connections Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon connections-icon">🔗</div>
+                    <div class="card-title">Connections</div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Active</span>
+                    <span class="metric-value status-good" id="connectionsActive">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Total</span>
+                    <span class="metric-value" id="connectionsTotal">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Peak</span>
+                    <span class="metric-value" id="connectionsPeak">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Failure Rate</span>
+                    <span class="metric-value" id="connectionsFailureRate">-</span>
+                </div>
+            </div>
+
+            <!-- Games Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon games-icon">♟️</div>
+                    <div class="card-title">Games</div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Active</span>
+                    <span class="metric-value status-good" id="gamesActive">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Total</span>
+                    <span class="metric-value" id="gamesTotal">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Completion Rate</span>
+                    <span class="metric-value" id="gamesCompletionRate">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Avg Duration</span>
+                    <span class="metric-value" id="gamesAvgDuration">-</span>
+                </div>
+            </div>
+
+            <!-- Performance Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon performance-icon">⚡</div>
+                    <div class="card-title">Performance</div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Response Time</span>
+                    <span class="metric-value" id="performanceResponseTime">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Throughput</span>
+                    <span class="metric-value" id="performanceThroughput">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Memory Usage</span>
+                    <span class="metric-value" id="performanceMemoryUsage">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Uptime</span>
+                    <span class="metric-value" id="performanceUptime">-</span>
+                </div>
+            </div>
+
+            <!-- Memory Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon memory-icon">💾</div>
+                    <div class="card-title">Memory Stats</div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Heap Used</span>
+                    <span class="metric-value" id="memoryHeapUsed">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Games</span>
+                    <span class="metric-value" id="memoryGames">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Players</span>
+                    <span class="metric-value" id="memoryPlayers">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Pending Cleanups</span>
+                    <span class="metric-value" id="memoryPendingCleanups">-</span>
+                </div>
+            </div>
+
+            <!-- Errors Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon errors-icon">⚠️</div>
+                    <div class="card-title">Errors</div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Total</span>
+                    <span class="metric-value" id="errorsTotal">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Last 24h</span>
+                    <span class="metric-value" id="errorsLast24h">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value" id="errorsRate">-</span>
+                </div>
+                <div id="errorsList" class="error-list"></div>
+            </div>
+        </div>
+
+        <!-- Alerts Section -->
+        <div class="alerts-section">
+            <h2 style="color: white; margin-bottom: 20px; text-align: center;">🚨 System Alerts</h2>
+            <div id="alertsContainer">
+                <div class="no-alerts">
+                    ✅ No alerts - System running smoothly
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="logs-section" style="margin-top: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                <h2 style="color: white; margin: 0;">📋 Server Logs</h2>
+                <div class="log-controls" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <select id="logLevelFilter" style="padding: 8px; border-radius: 5px; border: none;">
+                        <option value="">All Levels</option>
+                        <option value="ERROR">Errors Only</option>
+                        <option value="WARN">Warnings+</option>
+                        <option value="INFO">Info+</option>
+                        <option value="DEBUG">Debug+</option>
+                    </select>
+                    <select id="logSourceFilter" style="padding: 8px; border-radius: 5px; border: none;">
+                        <option value="">All Sources</option>
+                        <option value="server">Server</option>
+                        <option value="console">Console</option>
+                        <option value="connection">Connections</option>
+                        <option value="game">Games</option>
+                        <option value="move">Moves</option>
+                        <option value="error">Errors</option>
+                    </select>
+                    <button id="clearLogsBtn" style="padding: 8px 15px; background: #F44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        🗑️ Clear
+                    </button>
+                    <button id="exportLogsBtn" style="padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        📥 Export
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card" style="max-height: 500px; overflow: hidden;">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(45deg, #607D8B, #455A64);">📋</div>
+                    <div class="card-title">Live Server Logs</div>
+                    <div style="margin-left: auto; font-size: 0.9rem; color: #666;">
+                        <span id="logCount">0</span> entries
+                    </div>
+                </div>
+                
+                <div id="logsContainer" style="max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem;">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        Loading logs...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="refreshData()">
+        🔄 Refresh
+    </button>
+
+    <script>
+        let refreshInterval;
+        let currentLogFilters = { level: '', source: '', limit: 50 };
+        
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(endpoint);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error);
+                return null;
+            }
+        }
+
+        async function fetchLogs() {
+            const params = new URLSearchParams();
+            if (currentLogFilters.level) params.append('level', currentLogFilters.level);
+            if (currentLogFilters.source) params.append('source', currentLogFilters.source);
+            params.append('limit', currentLogFilters.limit);
+            
+            return await fetchData(`/logs?${params.toString()}`);
+        }
+
+        function updateMetric(elementId, value, isStatus = false) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value || '-';
+                
+                if (isStatus && value) {
+                    element.className = element.className.replace(/status-\w+/g, '');
+                    if (value.includes('%')) {
+                        const percentage = parseFloat(value);
+                        if (percentage > 10) element.classList.add('status-error');
+                        else if (percentage > 5) element.classList.add('status-warning');
+                        else element.classList.add('status-good');
+                    }
+                }
+            }
+        }
+
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleString();
+        }
+
+        function formatLogTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString();
+        }
+
+        function renderLogEntry(log) {
+            const hasContext = log.context && Object.keys(log.context).length > 0;
+            const contextHtml = hasContext ? 
+                `<div class="log-context">${JSON.stringify(log.context, null, 2)}</div>` : '';
+            
+            return `
+                <div class="log-entry">
+                    <div class="log-timestamp">${formatLogTime(log.timestamp)}</div>
+                    <div class="log-level log-level-${log.level}">${log.icon || log.level}</div>
+                    <div class="log-source">${log.source}</div>
+                    <div class="log-message">
+                        ${log.message}
+                        ${contextHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateLogs(logsData) {
+            const container = document.getElementById('logsContainer');
+            const countElement = document.getElementById('logCount');
+            
+            if (!logsData || !logsData.logs) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No logs available</div>';
+                countElement.textContent = '0';
+                return;
+            }
+
+            const logs = logsData.logs;
+            countElement.textContent = logs.length;
+
+            if (logs.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No logs match current filters</div>';
+                return;
+            }
+
+            container.innerHTML = logs.map(renderLogEntry).join('');
+            
+            // Auto-scroll to top for new logs
+            container.scrollTop = 0;
+        }
+
+        async function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs?')) return;
+            
+            try {
+                const response = await fetch('/logs/clear', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert(`Cleared ${result.clearedCount} log entries`);
+                    await refreshLogs();
+                } else {
+                    alert('Failed to clear logs: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error clearing logs: ' + error.message);
+            }
+        }
+
+        async function exportLogs() {
+            try {
+                const params = new URLSearchParams();
+                if (currentLogFilters.level) params.append('level', currentLogFilters.level);
+                if (currentLogFilters.source) params.append('source', currentLogFilters.source);
+                params.append('limit', 1000); // Export more logs
+                
+                const response = await fetch(`/logs/export?${params.toString()}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `server-logs-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    const result = await response.json();
+                    alert('Failed to export logs: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error exporting logs: ' + error.message);
+            }
+        }
+
+        async function refreshLogs() {
+            const logsData = await fetchLogs();
+            updateLogs(logsData);
+        }
+
+        async function refreshData() {
+            document.body.classList.add('loading');
+            
+            try {
+                // Fetch all data
+                const [summary, memoryStats, errors, alerts, logs] = await Promise.all([
+                    fetchData('/metrics/summary'),
+                    fetchData('/memory/stats'),
+                    fetchData('/metrics/errors'),
+                    fetchData('/metrics/alerts'),
+                    fetchLogs()
+                ]);
+
+                // Update summary metrics
+                if (summary) {
+                    updateMetric('connectionsActive', summary.connections?.active);
+                    updateMetric('connectionsTotal', summary.connections?.total);
+                    updateMetric('connectionsPeak', summary.connections?.peak);
+                    updateMetric('connectionsFailureRate', summary.connections?.failureRate, true);
+
+                    updateMetric('gamesActive', summary.games?.active);
+                    updateMetric('gamesTotal', summary.games?.total);
+                    updateMetric('gamesCompletionRate', summary.games?.completionRate);
+                    updateMetric('gamesAvgDuration', summary.games?.averageDuration);
+
+                    updateMetric('performanceResponseTime', summary.performance?.responseTime);
+                    updateMetric('performanceThroughput', summary.performance?.throughput);
+                    updateMetric('performanceMemoryUsage', summary.performance?.memoryUsage);
+                    updateMetric('performanceUptime', summary.performance?.uptime);
+
+                    updateMetric('errorsTotal', summary.errors?.total);
+                    updateMetric('errorsLast24h', summary.errors?.last24Hours);
+                    updateMetric('errorsRate', summary.errors?.errorRate, true);
+                }
+
+                // Update memory stats
+                if (memoryStats) {
+                    const heapUsedMB = (memoryStats.memoryUsage?.heapUsed / 1024 / 1024).toFixed(2);
+                    updateMetric('memoryHeapUsed', `${heapUsedMB}MB`);
+                    updateMetric('memoryGames', memoryStats.currentGames);
+                    updateMetric('memoryPlayers', memoryStats.currentPlayers);
+                    updateMetric('memoryPendingCleanups', memoryStats.pendingCleanups);
+                }
+
+                // Update errors list
+                if (errors && errors.recent) {
+                    const errorsList = document.getElementById('errorsList');
+                    if (errors.recent.length > 0) {
+                        errorsList.innerHTML = errors.recent.slice(0, 5).map(error => `
+                            <div class="error-item">
+                                <strong>${error.type}</strong>: ${error.message}
+                                <div class="error-time">${formatTime(error.timestamp)} - ${error.endpoint}</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        errorsList.innerHTML = '<div style="text-align: center; color: #4CAF50; padding: 10px;">No recent errors</div>';
+                    }
+                }
+
+                // Update alerts
+                if (alerts) {
+                    const alertsContainer = document.getElementById('alertsContainer');
+                    if (alerts.alerts && alerts.alerts.length > 0) {
+                        alertsContainer.innerHTML = alerts.alerts.map(alert => `
+                            <div class="alert alert-${alert.type}">
+                                <div class="alert-title">${alert.type.toUpperCase()}: ${alert.message}</div>
+                                <div class="alert-message">Threshold: ${alert.threshold}</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        alertsContainer.innerHTML = '<div class="no-alerts">✅ No alerts - System running smoothly</div>';
+                    }
+                }
+
+                // Update logs
+                updateLogs(logs);
+
+                // Update timestamp
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: Error - ${new Date().toLocaleTimeString()}`;
+            } finally {
+                document.body.classList.remove('loading');
+            }
+        }
+
+        // Auto-refresh every 10 seconds
+        function startAutoRefresh() {
+            refreshInterval = setInterval(refreshData, 10000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set up log filter event listeners
+            document.getElementById('logLevelFilter').addEventListener('change', (e) => {
+                currentLogFilters.level = e.target.value;
+                refreshLogs();
+            });
+
+            document.getElementById('logSourceFilter').addEventListener('change', (e) => {
+                currentLogFilters.source = e.target.value;
+                refreshLogs();
+            });
+
+            document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
+            document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
+
+            // Initial data load
+            refreshData();
+            startAutoRefresh();
+        });
+
+        // Handle visibility change to pause/resume auto-refresh
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', stopAutoRefresh);
+    </script>
+</body>
+</html>
