@@ -2,6 +2,7 @@
   "name": "multiplayer-chess",
   "version": "1.0.5",
   "description": "Simple multiplayer chess application with single lobby",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

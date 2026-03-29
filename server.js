@@ -1,14 +1,17 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
-const MemoryManager = require('./lib/memory-manager');
-const PerformanceMonitor = require('./lib/performance-monitor');
-const Logger = require('./lib/logger');
+import express from 'express';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import MemoryManager from './lib/memory-manager.js';
+import PerformanceMonitor from './lib/performance-monitor.js';
+import Logger from './lib/logger.js';
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new SocketIOServer(server);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 
@@ -895,9 +898,8 @@ app.get('/monitoring', (req, res) => {
 app.get('/version', (req, res) => {
   const startTime = Date.now();
   try {
-    const pkg = require(path.join(__dirname, 'package.json'));
     performanceMonitor.recordResponseTime(Date.now() - startTime);
-    res.json({ version: pkg.version });
+    res.json({ version: process.env.npm_package_version || 'unknown' });
   } catch (err) {
     performanceMonitor.recordError(err, '/version');
     performanceMonitor.recordResponseTime(Date.now() - startTime);
