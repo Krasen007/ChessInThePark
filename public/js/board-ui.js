@@ -63,7 +63,7 @@ const pieceSymbols = {
 // Get URL parameters
 const urlParams = new URLSearchParams(window.location.search);
 const gameMode = urlParams.get('mode') || 'single';
-const currentLang = urlParams.get('lang') || 'en';
+const currentLang = urlParams.get('lang') || 'bg';
 const t = translations[currentLang];
 
 // Game variables

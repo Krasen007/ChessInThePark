@@ -28,8 +28,8 @@
         <header class="header">
             <h1 id="main-title">Chess Game</h1>
             <div class="language-selector">
-                <button id="lang-en" class="lang-btn active">English</button>
-                <button id="lang-bg" class="lang-btn">Български</button>
+                <button id="lang-en" class="lang-btn">English</button>
+                <button id="lang-bg" class="lang-btn active">Български</button>
             </div>
         </header>
         <main class="main-content">
@@ -72,16 +72,16 @@
                 title: 'Шахматна игра',
                 chooseMode: 'Изберете режим на игра',
                 singlePlayer: 'Един играч',
-                multiplayer: 'Много играчи',
+                multiplayer: 'Един срещу друг',
                 singlePlayerDesc: 'Играйте срещу себе си',
-                multiplayerDesc: 'Играйте срещу друг играч',
+                multiplayerDesc: 'Изчакайте втория играч да се присъедини',
                 footerText: 'Кликнете върху режим на игра, за да започнете'
             }
         };
 
-        // Get current language from URL or default to English
+        // Get current language from URL or default to Bulgarian
         const urlParams = new URLSearchParams(window.location.search);
-        let currentLang = urlParams.get('lang') || 'en';
+        let currentLang = urlParams.get('lang') || 'bg';
 
         // Update page language
         function updateLanguage(lang) {
