@@ -94,6 +94,34 @@ Share these links directly:
 - No persistence - everything is stateless
 - All moves are validated server-side using chess.js
 
+## API Endpoints
+  monitoring: 'http://localhost:3000/monitoring',
+  metrics: 'http://localhost:3000/metrics',
+  logs: 'http://localhost:3000/logs'
+  
+### Pages
+- `GET /` - Home page (`index.html`)
+- `GET /game` - Game page (`game.html`)
+- `GET /monitoring` - Monitoring dashboard (`monitoring.html`)
+
+### App and Metrics
+- `GET /version` - Returns app version
+- `GET /metrics` - Full performance and memory metrics snapshot
+- `GET /metrics/summary` - High-level metrics summary
+- `GET /metrics/errors` - Error breakdown by type and endpoint
+- `GET /metrics/alerts` - Active performance alerts
+- `GET /memory/stats` - Memory manager stats
+
+### Logs
+- `GET /logs` - Returns logs with optional filters:
+  - `level` (e.g. `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`)
+  - `source` (e.g. `server`, `connection`, `game`, `move`, `error`, `performance`, `memory`, `console`)
+  - `since` (ISO date/time)
+  - `search` (text search)
+  - `limit` (max number of log entries, default `100`)
+- `GET /logs/stats` - Log statistics
+- `GET /logs/export` - Export logs as JSON (accepts same filters as `/logs`)
+
 ## Deployment
 
 For production, consider:
