@@ -4,6 +4,7 @@ A simple, stateless multiplayer chess game with English and Bulgarian language s
 You can play the latest version here: 
 https://chessinthepark.onrender.com
 
+![qr code](qrcode.png)
 
 ## Features
 

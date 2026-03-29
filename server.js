@@ -857,11 +857,11 @@ function handlePlayerLeaving(socket) {
   // First, remove any disconnected sockets from players array
   gameState.players = gameState.players.filter(p => {
     const clientSocket = io.sockets.sockets.get(p.id);
-    if (p.id === socket.id || !clientSocket || !clientSocket.connected) {
+    const shouldKeep = p.id !== socket.id && clientSocket && clientSocket.connected;
+    if (!shouldKeep) {
       console.log(`Removing player ${p.id} (${p.color})`);
-      return false;
     }
-    return true;
+    return shouldKeep;
   });
 
   console.log(`Players remaining after cleanup: ${gameState.players.length}`);
